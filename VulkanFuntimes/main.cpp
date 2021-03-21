@@ -1,26 +1,9 @@
 #include <iostream>
-#include <chrono>
 
 #include "driver.hpp"
 #include "swapchain.hpp"
 #include "rendering.hpp"
 #include "util.hpp"
-
-struct FpsCount {
-  static constexpr uint64_t kInterval = 200;
-  std::chrono::time_point<std::chrono::high_resolution_clock> start_ =
-      std::chrono::high_resolution_clock::now();
-  void count(uint64_t frame);
-};
-void FpsCount::count(uint64_t frame) {
-  if (!frame || frame % kInterval != 0) return;
-  auto end = std::chrono::high_resolution_clock::now();
-  auto timeus =
-      std::chrono::duration_cast<std::chrono::microseconds>(end - start_);
-  auto fps = (kInterval * 1000000) / timeus.count();
-  std::cerr << fps << " FPS\n";
-  start_ = end;
-}
 
 void mainApp() {
   Window window;
@@ -30,8 +13,6 @@ void mainApp() {
   RenderPass renderPass;
   Pipeline pipeline1;
   FpsCount fpsCount;
-
-  uint64_t frame = 0;
 
   while (!glfwWindowShouldClose(gWindow)) {
     uint64_t swapchainFrame = 0;
@@ -47,7 +28,10 @@ void mainApp() {
     auto [imageIndex, imageAvailableSemaphore] = swapchain.getFirstImage();
     while (!glfwWindowShouldClose(gWindow) && !gWindowSizeChanged) {
       // Pause while the window is in the background
-      while (!glfwGetWindowAttrib(gWindow, GLFW_FOCUSED)) glfwPollEvents();
+      while (!glfwGetWindowAttrib(gWindow, GLFW_FOCUSED)) {
+        std::cerr << "pausing\n";
+        glfwWaitEvents();
+      }
 
       if (swapchainFrame > kMaxImagesInFlight) {
         throwFail("waitForFences",
@@ -73,8 +57,7 @@ void mainApp() {
           swapchain.getNextImage(renderFinishedSemaphore);
 
       ++swapchainFrame;
-      fpsCount.count(frame);
-      ++frame;
+      fpsCount.count();
       glfwPollEvents();
     }
     gGraphicsQueue.waitIdle();

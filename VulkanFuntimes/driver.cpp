@@ -1,5 +1,7 @@
 #include "driver.hpp"
 
+#include <iostream>
+
 GLFWwindow *gWindow = nullptr;
 bool gWindowSizeChanged = false;
 
@@ -106,4 +108,15 @@ Device::~Device() {
   gDevice.destroy();
   gDevice = nullptr;
   gGraphicsQueue = nullptr;
+}
+
+void FpsCount::count() {
+  if (!frame_ || frame_ % kInterval != 0) return;
+  auto end = std::chrono::high_resolution_clock::now();
+  auto timeus =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start_);
+  auto fps = (kInterval * 1000000) / timeus.count();
+  std::cerr << fps << " FPS\n";
+  start_ = end;
+  ++frame_;
 }

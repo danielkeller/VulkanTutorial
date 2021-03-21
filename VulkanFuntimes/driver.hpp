@@ -3,6 +3,7 @@
 
 #include "vulkan/vulkan.hpp"
 #include "GLFW/glfw3.h"
+#include <chrono>
 
 extern GLFWwindow *gWindow;
 extern bool gWindowSizeChanged;
@@ -30,6 +31,14 @@ extern vk::Queue gGraphicsQueue;
 struct Device {
   Device();
   ~Device();
+};
+
+struct FpsCount {
+  uint64_t frame_ = 0;
+  static constexpr uint64_t kInterval = 200;
+  std::chrono::time_point<std::chrono::high_resolution_clock> start_ =
+      std::chrono::high_resolution_clock::now();
+  void count();
 };
 
 #endif /* driver_hpp */
