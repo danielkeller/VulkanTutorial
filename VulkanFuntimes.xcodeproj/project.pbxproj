@@ -10,6 +10,7 @@
 		3786A1E22607A57C0003ECCF /* driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E02607A57B0003ECCF /* driver.cpp */; };
 		3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E42607A6470003ECCF /* swapchain.cpp */; };
 		3786A1E92607A6520003ECCF /* rendering.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E72607A6520003ECCF /* rendering.cpp */; };
+		3786A1EB2607AFB20003ECCF /* glm in Resources */ = {isa = PBXBuildFile; fileRef = 3786A1EA2607AFB20003ECCF /* glm */; };
 		37C4641725FFD9980018E3F8 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
 		37C4642125FFDB190018E3F8 /* libglfw3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642025FFDB190018E3F8 /* libglfw3.a */; };
 		37C4642625FFDC270018E3F8 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642525FFDC270018E3F8 /* Cocoa.framework */; };
@@ -69,6 +70,7 @@
 		3786A1E52607A6470003ECCF /* swapchain.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = swapchain.hpp; sourceTree = "<group>"; };
 		3786A1E72607A6520003ECCF /* rendering.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = rendering.cpp; sourceTree = "<group>"; };
 		3786A1E82607A6520003ECCF /* rendering.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = rendering.hpp; sourceTree = "<group>"; };
+		3786A1EA2607AFB20003ECCF /* glm */ = {isa = PBXFileReference; lastKnownFileType = folder; path = glm; sourceTree = "<group>"; };
 		378E7E5426025F9A00013BD7 /* vulkan */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vulkan; sourceTree = "<group>"; };
 		37C4641325FFD9980018E3F8 /* VulkanFuntimes */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VulkanFuntimes; sourceTree = BUILT_PRODUCTS_DIR; };
 		37C4641625FFD9980018E3F8 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 		37C4642225FFDB3C0018E3F8 /* Include */ = {
 			isa = PBXGroup;
 			children = (
+				3786A1EA2607AFB20003ECCF /* glm */,
 				378E7E5426025F9A00013BD7 /* vulkan */,
 				37C4642325FFDB580018E3F8 /* GLFW */,
 			);
@@ -239,6 +242,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				37C4644325FFE95E0018E3F8 /* vulkan in Resources */,
+				3786A1EB2607AFB20003ECCF /* glm in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
