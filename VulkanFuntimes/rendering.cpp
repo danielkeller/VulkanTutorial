@@ -1,6 +1,8 @@
 #include "rendering.hpp"
 
 #include <fstream>
+#include "glm/vec2.hpp"
+#include "glm/vec3.hpp"
 
 #include "util.hpp"
 #include "driver.hpp"
@@ -54,6 +56,70 @@ RenderPass::RenderPass() {
 }
 RenderPass::~RenderPass() { gDevice.destroy(gRenderPass); }
 
+template <class V>
+struct Description {
+  static const vk::VertexInputBindingDescription binding;
+  static const std::initializer_list<vk::VertexInputAttributeDescription>
+      attribute;
+};
+
+struct Vertex {
+  glm::vec2 pos;
+  glm::vec3 color;
+};
+template <>
+const vk::VertexInputBindingDescription Description<Vertex>::binding{
+    /*binding=*/0, /*stride=*/sizeof(Vertex), vk::VertexInputRate::eVertex};
+template <>
+const std::initializer_list<vk::VertexInputAttributeDescription>
+    Description<Vertex>::attribute{
+        {/*location=*/0, /*binding=*/0, vk::Format::eR32G32Sfloat,
+         offsetof(Vertex, pos)},
+        {/*location=*/1, /*binding=*/0, vk::Format::eR32G32B32Sfloat,
+         offsetof(Vertex, color)}};
+
+const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+                                      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+
+uint32_t getMemoryForBuffer(vk::Buffer buffer) {
+  vk::MemoryRequirements memoryRequirements =
+      gDevice.getBufferMemoryRequirements(buffer);
+  vk::MemoryPropertyFlags memFlagRequirements =
+      vk::MemoryPropertyFlagBits::eHostVisible |
+      vk::MemoryPropertyFlagBits::eHostCoherent;
+
+  vk::PhysicalDeviceMemoryProperties memProperties =
+      gPhysicalDevice.getMemoryProperties();
+
+  for (uint32_t i = 0; i < memProperties.memoryTypes.size(); ++i) {
+    if (memoryRequirements.memoryTypeBits & (1 << i) &&
+        memProperties.memoryTypes[i].propertyFlags & memFlagRequirements)
+      return i;
+  }
+  throw std::runtime_error("No memory type found for buffer");
+}
+
+VertexBuffers::VertexBuffers() {
+  vk::DeviceSize size = sizeof(Vertex) * vertices.size();
+  buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
+                                  vk::BufferUsageFlagBits::eVertexBuffer,
+                                  vk::SharingMode::eExclusive});
+
+  uint32_t memoryType = getMemoryForBuffer(buffer_);
+  memory_ = gDevice.allocateMemory({size, memoryType});
+  gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
+  void *mapped = gDevice.mapMemory(memory_, /*offset=*/0, size);
+  std::copy_n((char *)&vertices[0], size, (char *)mapped);
+  gDevice.unmapMemory(memory_);
+  
+  count_ = (uint32_t)vertices.size();
+}
+VertexBuffers::~VertexBuffers() {
+  gDevice.destroy(buffer_);
+  gDevice.free(memory_);
+}
+
 Pipeline::Pipeline() {
   // Dynamic viewport
   vk::Viewport viewport;
@@ -66,7 +132,8 @@ Pipeline::Pipeline() {
 
   // Fixed function stuff
   vk::PipelineVertexInputStateCreateInfo vertexInput{
-      /*flags=*/{}, /*bindings=*/{}, /*attributes=*/{}};
+      /*flags=*/{}, Description<Vertex>::binding,
+      Description<Vertex>::attribute};
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
       /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
   vk::PipelineRasterizationStateCreateInfo rasterization(
@@ -114,7 +181,8 @@ Pipeline::~Pipeline() {
   gDevice.destroy(layout_);
 }
 
-CommandBuffers::CommandBuffers(vk::Pipeline pipeline) {
+CommandBuffers::CommandBuffers(vk::Pipeline pipeline,
+                               const VertexBuffers &vertices) {
   uint32_t nBuffers = (uint32_t)gFramebuffers.size();
   commandBuffers_ = gDevice.allocateCommandBuffers(
       {gCommandPool, vk::CommandBufferLevel::ePrimary, nBuffers});
@@ -131,6 +199,8 @@ CommandBuffers::CommandBuffers(vk::Pipeline pipeline) {
          vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
         vk::SubpassContents::eInline);
     buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+    vk::DeviceSize bufferOffset = 0;
+    buf.bindVertexBuffers(/*offset=*/0, vertices.buffer_, bufferOffset);
     buf.draw(/*vertexCount=*/3, /*instanceCount=*/1, /*firstVertex=*/0,
              /* firstInstance=*/0);
     buf.endRenderPass();

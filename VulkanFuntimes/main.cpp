@@ -20,7 +20,8 @@ void mainApp() {
     Semaphores semaphores;
     Framebuffers framebuffers;
     CommandPool commandPool;
-    CommandBuffers commandBuffers1(pipeline1.pipeline_);
+    VertexBuffers vertexBuffers;
+    CommandBuffers commandBuffers1(pipeline1.pipeline_, vertexBuffers);
     gWindowSizeChanged = false;
     std::cerr << "resize " << gSwapchainExtent.width << "x"
               << gSwapchainExtent.height << "\n";
@@ -33,12 +34,12 @@ void mainApp() {
         glfwWaitEvents();
       }
 
-      if (swapchainFrame > kMaxImagesInFlight) {
+      if (gInFlightFences[imageIndex]) {
         throwFail("waitForFences",
-                  gDevice.waitForFences(gFrameFences[imageIndex],
+                  gDevice.waitForFences(gInFlightFences[imageIndex],
                                         /*waitAll=*/false,
                                         /*timeout=*/UINT64_MAX));
-        gDevice.resetFences(gFrameFences[imageIndex]);
+        gDevice.resetFences(gInFlightFences[imageIndex]);
       }
 
       vk::PipelineStageFlags waitDestStage(
@@ -51,7 +52,8 @@ void mainApp() {
                             commandBuffer,
                             /*signal=*/renderFinishedSemaphore);
 
-      gGraphicsQueue.submit({submit}, gFrameFences[imageIndex]);
+      gInFlightFences[imageIndex] = gFrameFences[imageIndex];
+      gGraphicsQueue.submit({submit}, gInFlightFences[imageIndex]);
 
       std::tie(imageIndex, imageAvailableSemaphore) =
           swapchain.getNextImage(renderFinishedSemaphore);

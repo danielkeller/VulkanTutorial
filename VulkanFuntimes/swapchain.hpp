@@ -25,6 +25,7 @@ struct Swapchain {
 };
 
 extern std::vector<vk::Fence> gFrameFences;
+extern std::vector<vk::Fence> gInFlightFences;
 extern std::vector<vk::Semaphore> gImageAvailableSemaphores;
 extern std::vector<vk::Semaphore> gRenderFinishedSemaphores;
 

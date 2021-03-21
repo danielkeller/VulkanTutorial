@@ -96,12 +96,14 @@ Swapchain::~Swapchain() {
 }
 
 std::vector<vk::Fence> gFrameFences;
+std::vector<vk::Fence> gInFlightFences;
 std::vector<vk::Semaphore> gImageAvailableSemaphores;
 std::vector<vk::Semaphore> gRenderFinishedSemaphores;
 
 Semaphores::Semaphores() {
   for (size_t i = 0; i < gSwapchainImageCount; ++i) {
     gFrameFences.push_back(gDevice.createFence({}));
+    gInFlightFences.push_back(nullptr);
     gRenderFinishedSemaphores.push_back(gDevice.createSemaphore({}));
     gImageAvailableSemaphores.push_back(gDevice.createSemaphore({}));
   }
@@ -111,6 +113,7 @@ Semaphores::~Semaphores() {
   for (vk::Semaphore sem : gRenderFinishedSemaphores) gDevice.destroy(sem);
   for (vk::Semaphore sem : gImageAvailableSemaphores) gDevice.destroy(sem);
   gFrameFences.clear();
+  gInFlightFences.clear();
   gRenderFinishedSemaphores.clear();
   gImageAvailableSemaphores.clear();
 }
