@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3786A1E22607A57C0003ECCF /* driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E02607A57B0003ECCF /* driver.cpp */; };
+		3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E42607A6470003ECCF /* swapchain.cpp */; };
+		3786A1E92607A6520003ECCF /* rendering.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E72607A6520003ECCF /* rendering.cpp */; };
 		37C4641725FFD9980018E3F8 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
 		37C4642125FFDB190018E3F8 /* libglfw3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642025FFDB190018E3F8 /* libglfw3.a */; };
 		37C4642625FFDC270018E3F8 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642525FFDC270018E3F8 /* Cocoa.framework */; };
@@ -59,6 +62,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3786A1E02607A57B0003ECCF /* driver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = driver.cpp; sourceTree = "<group>"; };
+		3786A1E12607A57B0003ECCF /* driver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = driver.hpp; sourceTree = "<group>"; };
+		3786A1E32607A5D80003ECCF /* util.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = util.hpp; sourceTree = "<group>"; };
+		3786A1E42607A6470003ECCF /* swapchain.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = swapchain.cpp; sourceTree = "<group>"; };
+		3786A1E52607A6470003ECCF /* swapchain.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = swapchain.hpp; sourceTree = "<group>"; };
+		3786A1E72607A6520003ECCF /* rendering.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = rendering.cpp; sourceTree = "<group>"; };
+		3786A1E82607A6520003ECCF /* rendering.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = rendering.hpp; sourceTree = "<group>"; };
 		378E7E5426025F9A00013BD7 /* vulkan */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vulkan; sourceTree = "<group>"; };
 		37C4641325FFD9980018E3F8 /* VulkanFuntimes */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VulkanFuntimes; sourceTree = BUILT_PRODUCTS_DIR; };
 		37C4641625FFD9980018E3F8 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
@@ -113,6 +123,13 @@
 			children = (
 				37C4644626013D2E0018E3F8 /* Shaders */,
 				37C4641625FFD9980018E3F8 /* main.cpp */,
+				3786A1E02607A57B0003ECCF /* driver.cpp */,
+				3786A1E12607A57B0003ECCF /* driver.hpp */,
+				3786A1E32607A5D80003ECCF /* util.hpp */,
+				3786A1E42607A6470003ECCF /* swapchain.cpp */,
+				3786A1E52607A6470003ECCF /* swapchain.hpp */,
+				3786A1E72607A6520003ECCF /* rendering.cpp */,
+				3786A1E82607A6520003ECCF /* rendering.hpp */,
 			);
 			path = VulkanFuntimes;
 			sourceTree = "<group>";
@@ -232,9 +249,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3786A1E92607A6520003ECCF /* rendering.cpp in Sources */,
 				37C4641725FFD9980018E3F8 /* main.cpp in Sources */,
+				3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */,
 				37C4644B26013E380018E3F8 /* triangle.vert in Sources */,
 				37C4644D260140000018E3F8 /* test.frag in Sources */,
+				3786A1E22607A57C0003ECCF /* driver.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
