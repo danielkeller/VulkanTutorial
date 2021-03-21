@@ -19,32 +19,40 @@ void throwFail(const char *context, const vk::Result &result) {
 constexpr vk::Format presentFormat = vk::Format::eB8G8R8A8Srgb;
 constexpr uint32_t kMaxImagesInFlight = 2;
 
-GLFWwindow *gWindow = nullptr;                         // Owned by Window
-vk::Instance gInstance;                                // Owned by Instance
-vk::PhysicalDevice gPhysicalDevice;                    // Owned by Instance
-vk::SurfaceKHR gSurface;                               // Owned by Surface
-vk::Device gDevice;                                    // Owned by Device
-uint32_t gGraphicsQueueFamilyIndex = 0;                // Owned by Device
-vk::Queue gGraphicsQueue;                              // Owned by Device
-std::vector<vk::Fence> gFrameFences;                   // Owned by Semaphores
-vk::Fence gAcquireFence;                               // Owned by Semaphores
-std::vector<vk::Semaphore> gImageAvailableSemaphores;  // Owned by Semaphores
-std::vector<vk::Semaphore> gRenderFinishedSemaphores;  // Owned by Semaphores
+GLFWwindow *gWindow = nullptr;           // Owned by Window
+bool gWindowSizeChanged = false;         // Owned by Window
+vk::Instance gInstance;                  // Owned by Instance
+vk::PhysicalDevice gPhysicalDevice;      // Owned by Instance
+vk::SurfaceKHR gSurface;                 // Owned by Surface
+vk::Device gDevice;                      // Owned by Device
+uint32_t gGraphicsQueueFamilyIndex = 0;  // Owned by Device
+vk::Queue gGraphicsQueue;                // Owned by Device
+
 vk::SwapchainKHR gSwapchain;                           // Owned by Swapchain
 uint32_t gSwapchainImageCount;                         // Owned by Swapchain
 std::vector<vk::Image> gSwapchainImages;               // Owned by Swapchain
 std::vector<vk::ImageView> gSwapchainImageViews;       // Owned by Swapchain
 vk::Extent2D gSwapchainExtent;                         // Owned by Swapchain
-vk::RenderPass gRenderPass;                            // Owned by RenderPass
+vk::Viewport gViewport;                                // Owned by Swapchain
+vk::Rect2D gScissor;                                   // Owned by Swapchain
+std::vector<vk::Fence> gFrameFences;                   // Owned by Semaphores
+vk::Fence gAcquireFence;                               // Owned by Semaphores
+std::vector<vk::Semaphore> gImageAvailableSemaphores;  // Owned by Semaphores
+std::vector<vk::Semaphore> gRenderFinishedSemaphores;  // Owned by Semaphores
 std::vector<vk::Framebuffer> gFramebuffers;            // Owned by Framebuffers
-vk::CommandPool gCommandPool;                          // Owned by CommandPool
+
+vk::RenderPass gRenderPass;    // Owned by RenderPass
+vk::CommandPool gCommandPool;  // Owned by CommandPool
+
+void windowSizeCallback(GLFWwindow *, int, int) { gWindowSizeChanged = true; }
 
 struct Window {
   Window() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     gWindow = glfwCreateWindow(800, 600, "Hello World", nullptr, nullptr);
+    glfwSetFramebufferSizeCallback(gWindow, windowSizeCallback);
   }
   ~Window() {
     glfwDestroyWindow(gWindow);
@@ -147,104 +155,20 @@ Device::~Device() {
   gGraphicsQueue = nullptr;
 }
 
-struct Semaphores {
-  Semaphores();
-  ~Semaphores();
+struct CommandPool {
+  CommandPool();
+  ~CommandPool();
 };
-Semaphores::Semaphores() {
-  gAcquireFence = gDevice.createFence({});
-  for (size_t i = 0; i < gSwapchainImageCount; ++i) {
-    gFrameFences.push_back(gDevice.createFence({}));
-    gRenderFinishedSemaphores.push_back(gDevice.createSemaphore({}));
-    gImageAvailableSemaphores.push_back(gDevice.createSemaphore({}));
-  }
+CommandPool::CommandPool() {
+  gCommandPool =
+      gDevice.createCommandPool({/*flags=*/{}, gGraphicsQueueFamilyIndex});
 }
-Semaphores::~Semaphores() {
-  gDevice.destroy(gAcquireFence);
-  for (vk::Fence fence : gFrameFences) gDevice.destroy(fence);
-  for (vk::Semaphore sem : gRenderFinishedSemaphores) gDevice.destroy(sem);
-  for (vk::Semaphore sem : gImageAvailableSemaphores) gDevice.destroy(sem);
-  gFrameFences.clear();
-  gRenderFinishedSemaphores.clear();
-  gImageAvailableSemaphores.clear();
-}
+CommandPool::~CommandPool() { gDevice.destroy(gCommandPool); }
 
 vk::Extent2D windowExtent() {
   int width, height;
   glfwGetFramebufferSize(gWindow, &width, &height);
   return vk::Extent2D(width, height);
-}
-
-struct Swapchain {
-  Swapchain();
-  ~Swapchain();
-  uint32_t frameNum_ = 0;
-  uint32_t currentImage_ = 0;
-  std::tuple<uint32_t, vk::Semaphore> getFirstImage();
-  std::tuple<uint32_t, vk::Semaphore> getNextImage(
-      vk::Semaphore renderFinishedSemaphore);
-};
-Swapchain::Swapchain() {
-  vk::SurfaceCapabilitiesKHR caps =
-      gPhysicalDevice.getSurfaceCapabilitiesKHR(gSurface);
-  // The min image count is the minimum number of images in the swapchain for
-  // the application to be able to eventually aquire one of them
-  uint32_t requestedImages = kMaxImagesInFlight + caps.minImageCount - 1;
-  gSwapchainExtent = windowExtent();
-
-  gSwapchain = gDevice.createSwapchainKHR(
-      {/*flags=*/{}, gSurface, requestedImages, presentFormat,
-       vk::ColorSpaceKHR::eSrgbNonlinear, gSwapchainExtent,
-       /*imageArrayLayers=*/1, vk::ImageUsageFlagBits::eColorAttachment,
-       vk::SharingMode::eExclusive, /*queueFamilyIndices=*/{},
-       vk::SurfaceTransformFlagBitsKHR::eIdentity,
-       vk::CompositeAlphaFlagBitsKHR::eOpaque, vk::PresentModeKHR::eFifo,
-       /*clipped=*/true});
-
-  gSwapchainImages = gDevice.getSwapchainImagesKHR(gSwapchain);
-  gSwapchainImageCount = (uint32_t)gSwapchainImages.size();
-  gSwapchainImageViews.clear();
-  for (vk::Image image : gSwapchainImages) {
-    gSwapchainImageViews.push_back(gDevice.createImageView(
-        {/*flags=*/{}, image, vk::ImageViewType::e2D, presentFormat,
-         vk::ComponentMapping(),
-         vk::ImageSubresourceRange(
-             vk::ImageAspectFlagBits::eColor, /*baseMipLevel=*/0,
-             /*levelCount=*/1, /*baseArrayLayer=*/0, /*layerCount=*/1)}));
-  }
-}
-
-std::tuple<uint32_t, vk::Semaphore> Swapchain::getFirstImage() {
-  vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
-  vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
-      gSwapchain, UINT64_MAX, imageAvailableSemaphore,
-      /*fence=*/nullptr);
-  throwFail("acquireNextImageKHR", imageIndex_or.result);
-  return {currentImage_ = imageIndex_or.value, imageAvailableSemaphore};
-}
-std::tuple<uint32_t, vk::Semaphore> Swapchain::getNextImage(
-    vk::Semaphore renderFinishedSemaphore) {
-  frameNum_ = (frameNum_ + 1) % kMaxImagesInFlight;
-  vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
-  vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
-      gSwapchain, UINT64_MAX, imageAvailableSemaphore,
-      /*fence=*/nullptr);
-  throwFail("acquireNextImageKHR", imageIndex_or.result);
-
-  throwFail("presentKHR",
-            gGraphicsQueue.presentKHR(
-                {renderFinishedSemaphore, gSwapchain, currentImage_}));
-
-  return {currentImage_ = imageIndex_or.value, imageAvailableSemaphore};
-}
-
-Swapchain::~Swapchain() {
-  for (vk::ImageView imageView : gSwapchainImageViews)
-    gDevice.destroy(imageView);
-  gSwapchainImages.clear();
-  gSwapchainImageViews.clear();
-  gDevice.destroy(gSwapchain);
-  gSwapchain = nullptr;
 }
 
 vk::ShaderModule readShader(const std::string &filename) {
@@ -289,6 +213,113 @@ RenderPass::RenderPass() {
 }
 RenderPass::~RenderPass() { gDevice.destroy(gRenderPass); }
 
+struct Swapchain {
+  Swapchain();
+  ~Swapchain();
+  uint32_t frameNum_ = 0;
+  uint32_t currentImage_ = 0;
+  std::tuple<uint32_t, vk::Semaphore> getFirstImage();
+  std::tuple<uint32_t, vk::Semaphore> getNextImage(
+      vk::Semaphore renderFinishedSemaphore);
+};
+Swapchain::Swapchain() {
+  vk::SurfaceCapabilitiesKHR caps =
+      gPhysicalDevice.getSurfaceCapabilitiesKHR(gSurface);
+  // The min image count is the minimum number of images in the swapchain for
+  // the application to be able to eventually aquire one of them
+  uint32_t requestedImages = kMaxImagesInFlight + caps.minImageCount - 1;
+  gSwapchainExtent = windowExtent();
+  gViewport =
+      vk::Viewport(0, 0, gSwapchainExtent.width, gSwapchainExtent.height,
+                   /*minZ=*/0., /*maxZ=*/1.);
+  gScissor = vk::Rect2D(vk::Offset2D(0, 0), gSwapchainExtent);
+
+  gSwapchain = gDevice.createSwapchainKHR(
+      {/*flags=*/{}, gSurface, requestedImages, presentFormat,
+       vk::ColorSpaceKHR::eSrgbNonlinear, gSwapchainExtent,
+       /*imageArrayLayers=*/1, vk::ImageUsageFlagBits::eColorAttachment,
+       vk::SharingMode::eExclusive, /*queueFamilyIndices=*/{},
+       vk::SurfaceTransformFlagBitsKHR::eIdentity,
+       vk::CompositeAlphaFlagBitsKHR::eOpaque, vk::PresentModeKHR::eFifo,
+       /*clipped=*/true});
+
+  gSwapchainImages = gDevice.getSwapchainImagesKHR(gSwapchain);
+  gSwapchainImageCount = (uint32_t)gSwapchainImages.size();
+  gSwapchainImageViews.clear();
+  for (vk::Image image : gSwapchainImages) {
+    gSwapchainImageViews.push_back(gDevice.createImageView(
+        {/*flags=*/{}, image, vk::ImageViewType::e2D, presentFormat,
+         vk::ComponentMapping(),
+         vk::ImageSubresourceRange(
+             vk::ImageAspectFlagBits::eColor, /*baseMipLevel=*/0,
+             /*levelCount=*/1, /*baseArrayLayer=*/0, /*layerCount=*/1)}));
+  }
+}
+
+void checkResizeOrThrowFail(const char *context, vk::Result result) {
+  if (result == vk::Result::eSuboptimalKHR ||
+      result == vk::Result::eErrorOutOfDateKHR)
+    gWindowSizeChanged = true;
+  else
+    throwFail(context, result);
+}
+
+std::tuple<uint32_t, vk::Semaphore> Swapchain::getFirstImage() {
+  vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
+  vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
+      gSwapchain, UINT64_MAX, imageAvailableSemaphore,
+      /*fence=*/nullptr);
+  checkResizeOrThrowFail("acquireNextImageKHR", imageIndex_or.result);
+
+  return {currentImage_ = imageIndex_or.value, imageAvailableSemaphore};
+}
+std::tuple<uint32_t, vk::Semaphore> Swapchain::getNextImage(
+    vk::Semaphore renderFinishedSemaphore) {
+  frameNum_ = (frameNum_ + 1) % kMaxImagesInFlight;
+  vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
+  vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
+      gSwapchain, UINT64_MAX, imageAvailableSemaphore,
+      /*fence=*/nullptr);
+  checkResizeOrThrowFail("acquireNextImageKHR", imageIndex_or.result);
+
+  checkResizeOrThrowFail(
+      "presentKHR", gGraphicsQueue.presentKHR(
+                        {renderFinishedSemaphore, gSwapchain, currentImage_}));
+
+  return {currentImage_ = imageIndex_or.value, imageAvailableSemaphore};
+}
+
+Swapchain::~Swapchain() {
+  for (vk::ImageView imageView : gSwapchainImageViews)
+    gDevice.destroy(imageView);
+  gSwapchainImages.clear();
+  gSwapchainImageViews.clear();
+  gDevice.destroy(gSwapchain);
+  gSwapchain = nullptr;
+}
+
+struct Semaphores {
+  Semaphores();
+  ~Semaphores();
+};
+Semaphores::Semaphores() {
+  gAcquireFence = gDevice.createFence({});
+  for (size_t i = 0; i < gSwapchainImageCount; ++i) {
+    gFrameFences.push_back(gDevice.createFence({}));
+    gRenderFinishedSemaphores.push_back(gDevice.createSemaphore({}));
+    gImageAvailableSemaphores.push_back(gDevice.createSemaphore({}));
+  }
+}
+Semaphores::~Semaphores() {
+  gDevice.destroy(gAcquireFence);
+  for (vk::Fence fence : gFrameFences) gDevice.destroy(fence);
+  for (vk::Semaphore sem : gRenderFinishedSemaphores) gDevice.destroy(sem);
+  for (vk::Semaphore sem : gImageAvailableSemaphores) gDevice.destroy(sem);
+  gFrameFences.clear();
+  gRenderFinishedSemaphores.clear();
+  gImageAvailableSemaphores.clear();
+}
+
 struct Framebuffers {
   Framebuffers();
   ~Framebuffers();
@@ -305,16 +336,6 @@ Framebuffers::~Framebuffers() {
   gFramebuffers.clear();
 }
 
-struct CommandPool {
-  CommandPool();
-  ~CommandPool();
-};
-CommandPool::CommandPool() {
-  gCommandPool =
-      gDevice.createCommandPool({/*flags=*/{}, gGraphicsQueueFamilyIndex});
-}
-CommandPool::~CommandPool() { gDevice.destroy(gCommandPool); }
-
 struct Pipeline {
   vk::PipelineLayout layout_;
   vk::Pipeline pipeline_;
@@ -322,17 +343,20 @@ struct Pipeline {
   ~Pipeline();
 };
 Pipeline::Pipeline() {
+  // Dynamic viewport
+  vk::Viewport viewport;
+  vk::Rect2D scissor;
+  vk::PipelineViewportStateCreateInfo viewportState(
+      /*flags=*/{}, viewport, scissor);
+  auto dynamicStates = {vk::DynamicState::eViewport,
+                        vk::DynamicState::eScissor};
+  vk::PipelineDynamicStateCreateInfo dynamicState(/*flags=*/{}, dynamicStates);
+
   // Fixed function stuff
   vk::PipelineVertexInputStateCreateInfo vertexInput{
       /*flags=*/{}, /*bindings=*/{}, /*attributes=*/{}};
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
       /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
-  vk::Viewport viewport(
-      /*x=*/0, /*y=*/0, (float)gSwapchainExtent.width,
-      (float)gSwapchainExtent.height, /*minDepth=*/0, /*maxDepth=*/1);
-  vk::Rect2D scissor(/*offset=*/{0, 0}, gSwapchainExtent);
-  vk::PipelineViewportStateCreateInfo viewportState(
-      /*flags=*/{}, viewport, scissor);
   vk::PipelineRasterizationStateCreateInfo rasterization(
       /*flags=*/{}, /*depthClampEnable=*/false,
       /*rasterizerDiscardEnable=*/false, vk::PolygonMode::eFill,
@@ -362,7 +386,7 @@ Pipeline::Pipeline() {
           /*pipelineCache=*/nullptr,
           {{/*flags=*/{}, stages, &vertexInput, &inputAssembly,
             /*tesselation=*/{}, &viewportState, &rasterization, &multisample,
-            /*depthStencil=*/{}, &colorBlend, /*dynamicState=*/{}, layout_,
+            /*depthStencil=*/{}, &colorBlend, &dynamicState, layout_,
             gRenderPass, /*subpass=*/0, /*basePipeline=*/{}}});
 
   gDevice.destroy(vert);
@@ -376,35 +400,6 @@ Pipeline::Pipeline() {
 Pipeline::~Pipeline() {
   gDevice.destroy(pipeline_);
   gDevice.destroy(layout_);
-}
-
-struct CommandBuffers {
-  std::vector<vk::CommandBuffer> commandBuffers_;
-  CommandBuffers(vk::Pipeline pipeline);
-  // Buffers are freed by the pool
-};
-CommandBuffers::CommandBuffers(vk::Pipeline pipeline) {
-  uint32_t nBuffers = (uint32_t)gFramebuffers.size();
-  commandBuffers_ = gDevice.allocateCommandBuffers(
-      {gCommandPool, vk::CommandBufferLevel::ePrimary, nBuffers});
-
-  for (uint32_t i = 0; i < nBuffers; ++i) {
-    vk::CommandBuffer buf = commandBuffers_[i];
-    buf.begin(vk::CommandBufferBeginInfo(
-        // vk::CommandBufferUsageFlagBits::eSimultaneousUse
-        ));
-    vk::ClearValue clearColor(
-        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}));
-    buf.beginRenderPass(
-        {gRenderPass, gFramebuffers[i], /*renderArea=*/
-         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
-        vk::SubpassContents::eInline);
-    buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-    buf.draw(/*vertexCount=*/3, /*instanceCount=*/1, /*firstVertex=*/0,
-             /* firstInstance=*/0);
-    buf.endRenderPass();
-    buf.end();
-  }
 }
 
 struct FpsCount {
@@ -423,51 +418,93 @@ void FpsCount::count(uint64_t frame) {
   start_ = end;
 }
 
+struct CommandBuffers {
+  std::vector<vk::CommandBuffer> commandBuffers_;
+  CommandBuffers(vk::Pipeline pipeline);
+  // Buffers are freed by the pool
+};
+CommandBuffers::CommandBuffers(vk::Pipeline pipeline) {
+  uint32_t nBuffers = (uint32_t)gFramebuffers.size();
+  commandBuffers_ = gDevice.allocateCommandBuffers(
+      {gCommandPool, vk::CommandBufferLevel::ePrimary, nBuffers});
+
+  for (uint32_t i = 0; i < nBuffers; ++i) {
+    vk::CommandBuffer buf = commandBuffers_[i];
+    buf.begin(vk::CommandBufferBeginInfo());
+    buf.setViewport(/*index=*/0, gViewport);
+    buf.setScissor(/*index=*/0, gScissor);
+    vk::ClearValue clearColor(
+        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}));
+    buf.beginRenderPass(
+        {gRenderPass, gFramebuffers[i], /*renderArea=*/
+         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
+        vk::SubpassContents::eInline);
+    buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+    buf.draw(/*vertexCount=*/3, /*instanceCount=*/1, /*firstVertex=*/0,
+             /* firstInstance=*/0);
+    buf.endRenderPass();
+    buf.end();
+  }
+}
+
 void mainApp() {
   Window window;
   Instance instance;
   Surface surface;
   Device device;
-  Swapchain swapchain;
-  Semaphores semaphores;
   RenderPass renderPass;
-  Framebuffers framebuffers;
-  CommandPool commandPool;
   Pipeline pipeline1;
-  CommandBuffers commandBuffers1(pipeline1.pipeline_);
   FpsCount fpsCount;
 
   uint64_t frame = 0;
-  auto [imageIndex, imageAvailableSemaphore] = swapchain.getFirstImage();
 
   while (!glfwWindowShouldClose(gWindow)) {
-    if (frame > kMaxImagesInFlight) {
-      throwFail("waitForFences", gDevice.waitForFences(gFrameFences[imageIndex],
-                                                       /*waitAll=*/false,
-                                                       /*timeout=*/UINT64_MAX));
-      gDevice.resetFences(gFrameFences[imageIndex]);
+    uint64_t swapchainFrame = 0;
+    Swapchain swapchain;
+    Semaphores semaphores;
+    Framebuffers framebuffers;
+    CommandPool commandPool;
+    CommandBuffers commandBuffers1(pipeline1.pipeline_);
+    gWindowSizeChanged = false;
+    std::cerr << "resize " << gSwapchainExtent.width << "x"
+              << gSwapchainExtent.height << "\n";
+
+    auto [imageIndex, imageAvailableSemaphore] = swapchain.getFirstImage();
+    while (!glfwWindowShouldClose(gWindow) && !gWindowSizeChanged) {
+      // Pause while the window is in the background
+      while (!glfwGetWindowAttrib(gWindow, GLFW_FOCUSED))
+        glfwPollEvents();
+      
+      if (swapchainFrame > kMaxImagesInFlight) {
+        throwFail("waitForFences",
+                  gDevice.waitForFences(gFrameFences[imageIndex],
+                                        /*waitAll=*/false,
+                                        /*timeout=*/UINT64_MAX));
+        gDevice.resetFences(gFrameFences[imageIndex]);
+      }
+
+      vk::PipelineStageFlags waitDestStage(
+          vk::PipelineStageFlagBits::eColorAttachmentOutput);
+      vk::CommandBuffer commandBuffer(
+          commandBuffers1.commandBuffers_[imageIndex]);
+      vk::Semaphore renderFinishedSemaphore =
+          gRenderFinishedSemaphores[imageIndex];
+      vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,
+                            commandBuffer,
+                            /*signal=*/renderFinishedSemaphore);
+
+      gGraphicsQueue.submit({submit}, gFrameFences[imageIndex]);
+
+      std::tie(imageIndex, imageAvailableSemaphore) =
+          swapchain.getNextImage(renderFinishedSemaphore);
+
+      ++swapchainFrame;
+      fpsCount.count(frame);
+      ++frame;
+      glfwPollEvents();
     }
-
-    vk::PipelineStageFlags waitDestStage(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput);
-    vk::CommandBuffer commandBuffer(
-        commandBuffers1.commandBuffers_[imageIndex]);
-    vk::Semaphore renderFinishedSemaphore =
-        gRenderFinishedSemaphores[imageIndex];
-    vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,
-                          commandBuffer,
-                          /*signal=*/renderFinishedSemaphore);
-
-    gGraphicsQueue.submit({submit}, gFrameFences[imageIndex]);
-
-    std::tie(imageIndex, imageAvailableSemaphore) =
-        swapchain.getNextImage(renderFinishedSemaphore);
-    
-    fpsCount.count(frame);
-    ++frame;
-    glfwPollEvents();
+    gGraphicsQueue.waitIdle();
   }
-  gGraphicsQueue.waitIdle();
 }
 
 int main(int argc, const char *argv[]) {
