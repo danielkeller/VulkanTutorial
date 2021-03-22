@@ -33,6 +33,8 @@ struct VertexBuffers {
   vk::DeviceMemory memory_;
   vk::Buffer staging_buffer_;
   vk::DeviceMemory staging_memory_;
+  vk::DeviceSize vertex_offset_;
+  vk::DeviceSize index_offset_;
   uint32_t count_;
   VertexBuffers();
   ~VertexBuffers();

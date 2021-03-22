@@ -91,9 +91,12 @@ const std::initializer_list<vk::VertexInputAttributeDescription>
         {/*location=*/1, /*binding=*/0, vk::Format::eR32G32B32Sfloat,
          offsetof(Vertex, color)}};
 
-const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+const std::vector<Vertex> vertices = {{{0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
                                       {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                                      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+                                      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+                                      {{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}}};
+
+const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
 uint32_t getMemoryForBuffer(vk::Buffer buffer,
                             vk::MemoryPropertyFlags memFlagRequirements) {
@@ -123,8 +126,11 @@ void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
 }
 
 VertexBuffers::VertexBuffers() {
-  count_ = (uint32_t)vertices.size();
-  vk::DeviceSize size = sizeof(Vertex) * vertices.size();
+  count_ = (uint32_t)indices.size();
+  vertex_offset_ = 0;
+  vk::DeviceSize vertexSize = index_offset_ = sizeof(Vertex) * vertices.size();
+  vk::DeviceSize indexSize = sizeof(uint16_t) * indices.size();
+  vk::DeviceSize size = vertexSize + indexSize;
 
   staging_buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
                                           vk::BufferUsageFlagBits::eTransferSrc,
@@ -136,11 +142,13 @@ VertexBuffers::VertexBuffers() {
   gDevice.bindBufferMemory(staging_buffer_, staging_memory_, /*offset=*/0);
 
   void *mapped = gDevice.mapMemory(staging_memory_, /*offset=*/0, size);
-  std::copy_n((char *)&vertices[0], size, (char *)mapped);
+  std::copy_n((char *)&vertices[0], vertexSize, (char *)mapped);
+  std::copy_n((char *)&indices[0], indexSize, (char *)mapped + index_offset_);
   gDevice.unmapMemory(staging_memory_);
 
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
-                                  vk::BufferUsageFlagBits::eVertexBuffer |
+                                  vk::BufferUsageFlagBits::eIndexBuffer |
+                                      vk::BufferUsageFlagBits::eVertexBuffer |
                                       vk::BufferUsageFlagBits::eTransferDst,
                                   vk::SharingMode::eExclusive});
 
@@ -236,10 +244,13 @@ CommandBuffers::CommandBuffers(vk::Pipeline pipeline,
          vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
         vk::SubpassContents::eInline);
     buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-    vk::DeviceSize bufferOffset = 0;
-    buf.bindVertexBuffers(/*offset=*/0, vertices.buffer_, bufferOffset);
-    buf.draw(/*vertexCount=*/3, /*instanceCount=*/1, /*firstVertex=*/0,
-             /* firstInstance=*/0);
+    buf.bindVertexBuffers(/*bindingOffset=*/0, vertices.buffer_,
+                          vertices.vertex_offset_);
+    buf.bindIndexBuffer(vertices.buffer_, vertices.index_offset_,
+                        vk::IndexType::eUint16);
+    buf.drawIndexed(vertices.count_, /*instanceCount=*/1, /*firstIndex=*/0,
+                    /*vertexOffset=*/0,
+                    /*firstInstance=*/0);
     buf.endRenderPass();
     buf.end();
   }
