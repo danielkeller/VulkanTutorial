@@ -14,6 +14,7 @@ struct Window {
 
 extern vk::Instance gInstance;
 extern vk::PhysicalDevice gPhysicalDevice;
+extern vk::PhysicalDeviceProperties gPhysicalDeviceProperties;
 struct Instance {
   Instance();
   ~Instance();

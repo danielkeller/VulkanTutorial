@@ -21,17 +21,18 @@ void mainApp() {
   FpsCount fpsCount;
 
   while (!glfwWindowShouldClose(gWindow)) {
-    uint64_t swapchainFrame = 0;
     Swapchain swapchain;
     Semaphores semaphores;
     Framebuffers framebuffers;
+    UniformBuffers uniformBuffers;
+    DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
     CommandPool commandPool;
-    CommandBuffers commandBuffers1(pipeline1.pipeline_, vertexBuffers);
+    CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers);
     gWindowSizeChanged = false;
     std::cerr << "resize " << gSwapchainExtent.width << "x"
               << gSwapchainExtent.height << "\n";
 
-    auto [imageIndex, imageAvailableSemaphore] = swapchain.getFirstImage();
+    vk::Semaphore imageAvailableSemaphore = swapchain.getFirstImage();
     while (!glfwWindowShouldClose(gWindow) && !gWindowSizeChanged) {
       // Pause while the window is in the background
       while (!glfwGetWindowAttrib(gWindow, GLFW_FOCUSED)) {
@@ -39,33 +40,33 @@ void mainApp() {
         glfwWaitEvents();
       }
 
-      if (gInFlightFences[imageIndex]) {
+      if (gInFlightFences[gSwapchainCurrentImage]) {
         throwFail("waitForFences",
-                  gDevice.waitForFences(gInFlightFences[imageIndex],
+                  gDevice.waitForFences(gInFlightFences[gSwapchainCurrentImage],
                                         /*waitAll=*/false,
                                         /*timeout=*/UINT64_MAX));
-        gDevice.resetFences(gInFlightFences[imageIndex]);
+        gDevice.resetFences(gInFlightFences[gSwapchainCurrentImage]);
       }
 
       vk::PipelineStageFlags waitDestStage(
           vk::PipelineStageFlagBits::eColorAttachmentOutput);
       vk::CommandBuffer commandBuffer(
-          commandBuffers1.commandBuffers_[imageIndex]);
+          commandBuffers1.commandBuffers_[gSwapchainCurrentImage]);
       vk::Semaphore renderFinishedSemaphore =
-          gRenderFinishedSemaphores[imageIndex];
+          gRenderFinishedSemaphores[gSwapchainCurrentImage];
       vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,
                             commandBuffer,
                             /*signal=*/renderFinishedSemaphore);
 
-      gInFlightFences[imageIndex] = gFrameFences[imageIndex];
-      gGraphicsQueue.submit({submit}, gInFlightFences[imageIndex]);
+      gInFlightFences[gSwapchainCurrentImage] =
+          gFrameFences[gSwapchainCurrentImage];
+      gGraphicsQueue.submit({submit}, gInFlightFences[gSwapchainCurrentImage]);
 
-      std::tie(imageIndex, imageAvailableSemaphore) =
-          swapchain.getNextImage(renderFinishedSemaphore);
+      imageAvailableSemaphore = swapchain.getNextImage(renderFinishedSemaphore);
 
-      ++swapchainFrame;
-      fpsCount.count();
       glfwPollEvents();
+      fpsCount.count();
+      uniformBuffers.update();
     }
     gGraphicsQueue.waitIdle();
   }

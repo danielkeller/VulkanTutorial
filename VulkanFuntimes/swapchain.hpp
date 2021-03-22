@@ -8,6 +8,7 @@ constexpr uint32_t kMaxImagesInFlight = 2;
 
 extern vk::SwapchainKHR gSwapchain;
 extern uint32_t gSwapchainImageCount;
+extern uint32_t gSwapchainCurrentImage;
 extern std::vector<vk::Image> gSwapchainImages;
 extern std::vector<vk::ImageView> gSwapchainImageViews;
 extern vk::Extent2D gSwapchainExtent;
@@ -18,10 +19,8 @@ struct Swapchain {
   Swapchain();
   ~Swapchain();
   uint32_t frameNum_ = 0;
-  uint32_t currentImage_ = 0;
-  std::tuple<uint32_t, vk::Semaphore> getFirstImage();
-  std::tuple<uint32_t, vk::Semaphore> getNextImage(
-      vk::Semaphore renderFinishedSemaphore);
+  vk::Semaphore getFirstImage();
+  vk::Semaphore getNextImage(vk::Semaphore renderFinishedSemaphore);
 };
 
 extern std::vector<vk::Fence> gFrameFences;

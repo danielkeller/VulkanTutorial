@@ -7,6 +7,7 @@
 
 vk::SwapchainKHR gSwapchain;
 uint32_t gSwapchainImageCount;
+uint32_t gSwapchainCurrentImage;
 std::vector<vk::Image> gSwapchainImages;
 std::vector<vk::ImageView> gSwapchainImageViews;
 vk::Extent2D gSwapchainExtent;
@@ -61,17 +62,17 @@ void checkResizeOrThrowFail(const char *context, vk::Result result) {
     throwFail(context, result);
 }
 
-std::tuple<uint32_t, vk::Semaphore> Swapchain::getFirstImage() {
+vk::Semaphore Swapchain::getFirstImage() {
   vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
   vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
       gSwapchain, UINT64_MAX, imageAvailableSemaphore,
       /*fence=*/nullptr);
   checkResizeOrThrowFail("acquireNextImageKHR", imageIndex_or.result);
 
-  return {currentImage_ = imageIndex_or.value, imageAvailableSemaphore};
+  gSwapchainCurrentImage = imageIndex_or.value;
+  return imageAvailableSemaphore;
 }
-std::tuple<uint32_t, vk::Semaphore> Swapchain::getNextImage(
-    vk::Semaphore renderFinishedSemaphore) {
+vk::Semaphore Swapchain::getNextImage(vk::Semaphore renderFinishedSemaphore) {
   frameNum_ = (frameNum_ + 1) % kMaxImagesInFlight;
   vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
   vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
@@ -79,11 +80,12 @@ std::tuple<uint32_t, vk::Semaphore> Swapchain::getNextImage(
       /*fence=*/nullptr);
   checkResizeOrThrowFail("acquireNextImageKHR", imageIndex_or.result);
 
-  checkResizeOrThrowFail(
-      "presentKHR", gGraphicsQueue.presentKHR(
-                        {renderFinishedSemaphore, gSwapchain, currentImage_}));
+  checkResizeOrThrowFail("presentKHR", gGraphicsQueue.presentKHR(
+                                           {renderFinishedSemaphore, gSwapchain,
+                                            gSwapchainCurrentImage}));
 
-  return {currentImage_ = imageIndex_or.value, imageAvailableSemaphore};
+  gSwapchainCurrentImage = imageIndex_or.value;
+  return imageAvailableSemaphore;
 }
 
 Swapchain::~Swapchain() {

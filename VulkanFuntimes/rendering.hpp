@@ -22,6 +22,7 @@ struct RenderPass {
 };
 
 struct Pipeline {
+  vk::DescriptorSetLayout descriptorSetLayout_;
   vk::PipelineLayout layout_;
   vk::Pipeline pipeline_;
   Pipeline();
@@ -40,9 +41,25 @@ struct VertexBuffers {
   ~VertexBuffers();
 };
 
+struct UniformBuffers {
+  vk::DeviceMemory memory_;
+  char* mapping_;
+  UniformBuffers();
+  void update();
+  ~UniformBuffers();
+};
+
+struct DescriptorPool {
+  vk::DescriptorPool pool_;
+  std::vector<vk::DescriptorSet> descriptorSets_;
+  DescriptorPool(vk::DescriptorSetLayout layout);
+  ~DescriptorPool();
+};
+
 struct CommandBuffers {
   std::vector<vk::CommandBuffer> commandBuffers_;
-  CommandBuffers(vk::Pipeline pipeline, const VertexBuffers& vertices);
+  CommandBuffers(const Pipeline& pipeline, const DescriptorPool& descriptorPool,
+                 const VertexBuffers& vertices);
   // Buffers are freed by the pool
 };
 

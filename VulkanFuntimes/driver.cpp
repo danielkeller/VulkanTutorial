@@ -21,6 +21,7 @@ Window::~Window() {
 
 vk::Instance gInstance;
 vk::PhysicalDevice gPhysicalDevice;
+vk::PhysicalDeviceProperties gPhysicalDeviceProperties;
 
 Instance::Instance() {
   vk::ApplicationInfo appInfo(/*pApplicationName=*/"Hello Triangle",
@@ -52,6 +53,8 @@ Instance::Instance() {
       gPhysicalDevice = device;
     }
   }
+  
+  gPhysicalDeviceProperties = gPhysicalDevice.getProperties();
 }
 Instance::~Instance() {
   gInstance.destroy();

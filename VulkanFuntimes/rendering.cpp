@@ -1,8 +1,12 @@
 #include "rendering.hpp"
 
 #include <fstream>
+#include <chrono>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
+#include "glm/mat4x4.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #include "util.hpp"
 #include "driver.hpp"
@@ -193,8 +197,13 @@ Pipeline::Pipeline() {
   vk::PipelineColorBlendStateCreateInfo colorBlend(
       /*flags=*/{}, /*logicOpEnable=*/false, /*logicOp=*/{}, colorBlend1);
 
-  layout_ = gDevice.createPipelineLayout({vk::PipelineLayoutCreateFlags(),
-                                          /*setLayouts=*/{},
+  vk::DescriptorSetLayoutBinding binding(
+      /*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
+      vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr);
+  descriptorSetLayout_ =
+      gDevice.createDescriptorSetLayout({/*flags=*/{}, binding});
+
+  layout_ = gDevice.createPipelineLayout({/*flags=*/{}, descriptorSetLayout_,
                                           /*pushConstantRanges=*/{}});
 
   vk::ShaderModule vert = readShader("triangle.vert");
@@ -224,9 +233,87 @@ Pipeline::Pipeline() {
 Pipeline::~Pipeline() {
   gDevice.destroy(pipeline_);
   gDevice.destroy(layout_);
+  gDevice.destroy(descriptorSetLayout_);
 }
 
-CommandBuffers::CommandBuffers(vk::Pipeline pipeline,
+template <class T>
+vk::DeviceSize uniformSize() {
+  static_assert(sizeof(T), "Empty uniform object");
+  vk::DeviceSize align =
+      gPhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+  return ((sizeof(T) + align - 1) / align) * align;
+}
+
+struct MVP {
+  glm::mat4 model, view, projection;
+};
+vk::Buffer gUniformBuffer;
+
+UniformBuffers::UniformBuffers() {
+  vk::DeviceSize size = uniformSize<MVP>() * gSwapchainImageCount;
+  gUniformBuffer = gDevice.createBuffer(
+      {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
+       vk::SharingMode::eExclusive});
+  uint32_t stagingMemoryType = getMemoryForBuffer(
+      gUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible |
+                          vk::MemoryPropertyFlagBits::eHostCoherent);
+  memory_ = gDevice.allocateMemory({size, stagingMemoryType});
+  gDevice.bindBufferMemory(gUniformBuffer, memory_, /*offset=*/0);
+  mapping_ = (char *)gDevice.mapMemory(memory_, /*offset=*/0, size);
+}
+
+void UniformBuffers::update() {
+  static auto start = std::chrono::high_resolution_clock::now();
+  auto now = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float> spinTime =
+      (now - start) % std::chrono::seconds(4);
+  MVP mvp;
+  mvp.model = glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+                          glm::vec3(0.f, 0.f, 1.f));
+  mvp.view = glm::lookAt(/*eye=*/glm::vec3(2.f, 2.f, 2.f),
+                         /*center=*/glm::vec3(0.f, 0.f, 0.f),
+                         /*camera-y=*/glm::vec3(0.f, 0.f, -1.f));
+  mvp.projection =
+      glm::perspective(/*fovy=*/glm::radians(45.f),
+                       gSwapchainExtent.width / (float)gSwapchainExtent.height,
+                       /*znear=*/0.1f, /*zfar=*/10.f);
+
+  size_t offset = gSwapchainCurrentImage * uniformSize<MVP>();
+  std::copy_n((char *)&mvp, uniformSize<MVP>(), mapping_ + offset);
+  // eHostCoherent handles flushes and the later queue submit creates a memory
+  // barrier
+}
+
+UniformBuffers::~UniformBuffers() {
+  gDevice.unmapMemory(memory_);
+  gDevice.destroy(gUniformBuffer);
+  gDevice.free(memory_);
+}
+
+DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
+  vk::DescriptorPoolSize size(vk::DescriptorType::eUniformBuffer,
+                              /*count=*/gSwapchainImageCount);
+  pool_ = gDevice.createDescriptorPool(
+      {/*flags=*/{}, /*maxSets=*/gSwapchainImageCount, size});
+
+  std::vector<vk::DescriptorSetLayout> layouts(gSwapchainImageCount, layout);
+  descriptorSets_ = gDevice.allocateDescriptorSets({pool_, layouts});
+
+  for (size_t i = 0; i < gSwapchainImageCount; ++i) {
+    vk::DeviceSize stride = uniformSize<MVP>();
+    vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, stride * i, stride);
+    vk::WriteDescriptorSet write(
+        descriptorSets_[i], /*binding=*/0, /*arrayElement=*/0,
+        vk::DescriptorType::eUniformBuffer, /*imageInfo=*/{}, bufferInfo,
+        /*texelBufferView=*/{});
+    gDevice.updateDescriptorSets(write, {});
+  }
+}
+
+DescriptorPool::~DescriptorPool() { gDevice.destroy(pool_); }
+
+CommandBuffers::CommandBuffers(const Pipeline &pipeline,
+                               const DescriptorPool &descriptorPool,
                                const VertexBuffers &vertices) {
   uint32_t nBuffers = (uint32_t)gFramebuffers.size();
   commandBuffers_ = gDevice.allocateCommandBuffers(
@@ -243,7 +330,10 @@ CommandBuffers::CommandBuffers(vk::Pipeline pipeline,
         {gRenderPass, gFramebuffers[i], /*renderArea=*/
          vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
         vk::SubpassContents::eInline);
-    buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+    buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
+    buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
+                           /*firstSet=*/0, descriptorPool.descriptorSets_[i],
+                           /*dynamicOffsets=*/{});
     buf.bindVertexBuffers(/*bindingOffset=*/0, vertices.buffer_,
                           vertices.vertex_offset_);
     buf.bindIndexBuffer(vertices.buffer_, vertices.index_offset_,
