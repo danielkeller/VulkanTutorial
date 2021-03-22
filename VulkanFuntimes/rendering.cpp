@@ -8,6 +8,19 @@
 #include "driver.hpp"
 #include "swapchain.hpp"
 
+vk::CommandPool gTransferCommandPool;
+
+TransferCommandPool::TransferCommandPool() {
+  gTransferCommandPool = gDevice.createCommandPool(
+      {vk::CommandPoolCreateFlagBits::eTransient, gGraphicsQueueFamilyIndex});
+}
+TransferCommandPool::~TransferCommandPool() {
+  // Wait for the transfers to finish
+  gGraphicsQueue.waitIdle();
+  gDevice.destroy(gTransferCommandPool);
+  gTransferCommandPool = nullptr;
+}
+
 vk::CommandPool gCommandPool;
 
 CommandPool::CommandPool() {
@@ -82,12 +95,10 @@ const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
                                       {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
                                       {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
 
-uint32_t getMemoryForBuffer(vk::Buffer buffer) {
+uint32_t getMemoryForBuffer(vk::Buffer buffer,
+                            vk::MemoryPropertyFlags memFlagRequirements) {
   vk::MemoryRequirements memoryRequirements =
       gDevice.getBufferMemoryRequirements(buffer);
-  vk::MemoryPropertyFlags memFlagRequirements =
-      vk::MemoryPropertyFlagBits::eHostVisible |
-      vk::MemoryPropertyFlagBits::eHostCoherent;
 
   vk::PhysicalDeviceMemoryProperties memProperties =
       gPhysicalDevice.getMemoryProperties();
@@ -100,22 +111,48 @@ uint32_t getMemoryForBuffer(vk::Buffer buffer) {
   throw std::runtime_error("No memory type found for buffer");
 }
 
+void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
+  vk::CommandBuffer cmd = gDevice.allocateCommandBuffers(
+      {gTransferCommandPool, vk::CommandBufferLevel::ePrimary, 1})[0];
+  cmd.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+  cmd.copyBuffer(src, dst, vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
+  cmd.end();
+  vk::SubmitInfo submit;
+  submit.setCommandBuffers(cmd);
+  gGraphicsQueue.submit(submit);
+}
+
 VertexBuffers::VertexBuffers() {
+  count_ = (uint32_t)vertices.size();
   vk::DeviceSize size = sizeof(Vertex) * vertices.size();
+
+  staging_buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
+                                          vk::BufferUsageFlagBits::eTransferSrc,
+                                          vk::SharingMode::eExclusive});
+  uint32_t stagingMemoryType = getMemoryForBuffer(
+      staging_buffer_, vk::MemoryPropertyFlagBits::eHostVisible |
+                           vk::MemoryPropertyFlagBits::eHostCoherent);
+  staging_memory_ = gDevice.allocateMemory({size, stagingMemoryType});
+  gDevice.bindBufferMemory(staging_buffer_, staging_memory_, /*offset=*/0);
+
+  void *mapped = gDevice.mapMemory(staging_memory_, /*offset=*/0, size);
+  std::copy_n((char *)&vertices[0], size, (char *)mapped);
+  gDevice.unmapMemory(staging_memory_);
+
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
-                                  vk::BufferUsageFlagBits::eVertexBuffer,
+                                  vk::BufferUsageFlagBits::eVertexBuffer |
+                                      vk::BufferUsageFlagBits::eTransferDst,
                                   vk::SharingMode::eExclusive});
 
-  uint32_t memoryType = getMemoryForBuffer(buffer_);
+  uint32_t memoryType =
+      getMemoryForBuffer(buffer_, vk::MemoryPropertyFlagBits::eDeviceLocal);
   memory_ = gDevice.allocateMemory({size, memoryType});
   gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
-  void *mapped = gDevice.mapMemory(memory_, /*offset=*/0, size);
-  std::copy_n((char *)&vertices[0], size, (char *)mapped);
-  gDevice.unmapMemory(memory_);
-  
-  count_ = (uint32_t)vertices.size();
+  copyBuffer(staging_buffer_, buffer_, size);
 }
 VertexBuffers::~VertexBuffers() {
+  gDevice.destroy(staging_buffer_);
+  gDevice.free(staging_memory_);
   gDevice.destroy(buffer_);
   gDevice.free(memory_);
 }

@@ -3,15 +3,19 @@
 
 #include "vulkan/vulkan.hpp"
 
-extern vk::CommandPool gCommandPool;
+extern vk::CommandPool gTransferCommandPool;
+struct TransferCommandPool {
+  TransferCommandPool();
+  ~TransferCommandPool();
+};
 
+extern vk::CommandPool gCommandPool;
 struct CommandPool {
   CommandPool();
   ~CommandPool();
 };
 
 extern vk::RenderPass gRenderPass;
-
 struct RenderPass {
   RenderPass();
   ~RenderPass();
@@ -27,6 +31,8 @@ struct Pipeline {
 struct VertexBuffers {
   vk::Buffer buffer_;
   vk::DeviceMemory memory_;
+  vk::Buffer staging_buffer_;
+  vk::DeviceMemory staging_memory_;
   uint32_t count_;
   VertexBuffers();
   ~VertexBuffers();

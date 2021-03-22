@@ -5,6 +5,11 @@
 #include "rendering.hpp"
 #include "util.hpp"
 
+VertexBuffers uploadData() {
+  TransferCommandPool transferCommandPool;
+  return VertexBuffers();
+}
+
 void mainApp() {
   Window window;
   Instance instance;
@@ -12,6 +17,7 @@ void mainApp() {
   Device device;
   RenderPass renderPass;
   Pipeline pipeline1;
+  VertexBuffers vertexBuffers = uploadData();
   FpsCount fpsCount;
 
   while (!glfwWindowShouldClose(gWindow)) {
@@ -20,7 +26,6 @@ void mainApp() {
     Semaphores semaphores;
     Framebuffers framebuffers;
     CommandPool commandPool;
-    VertexBuffers vertexBuffers;
     CommandBuffers commandBuffers1(pipeline1.pipeline_, vertexBuffers);
     gWindowSizeChanged = false;
     std::cerr << "resize " << gSwapchainExtent.width << "x"
