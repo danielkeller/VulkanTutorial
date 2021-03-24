@@ -8,6 +8,11 @@ struct TransferCommandPool {
   TransferCommandPool();
   ~TransferCommandPool();
 };
+struct TransferCommandBuffer {
+  TransferCommandBuffer();
+  ~TransferCommandBuffer();
+  vk::CommandBuffer cmd_;
+};
 
 extern vk::CommandPool gCommandPool;
 struct CommandPool {
@@ -29,16 +34,36 @@ struct Pipeline {
   ~Pipeline();
 };
 
+struct MappedStagingBuffer;
+struct StagingBuffer {
+  MappedStagingBuffer map(vk::DeviceSize size);
+  ~StagingBuffer();
+  vk::Buffer buffer_;
+  vk::DeviceMemory memory_;
+};
+struct MappedStagingBuffer {
+  ~MappedStagingBuffer();
+  vk::DeviceMemory memory_;
+  char* pointer_;
+};
+
 struct VertexBuffers {
   vk::Buffer buffer_;
   vk::DeviceMemory memory_;
-  vk::Buffer staging_buffer_;
-  vk::DeviceMemory staging_memory_;
+  StagingBuffer staging_buffer_;
   vk::DeviceSize vertex_offset_;
   vk::DeviceSize index_offset_;
   uint32_t count_;
   VertexBuffers();
   ~VertexBuffers();
+};
+
+struct Textures {
+  vk::Image image_;
+  vk::DeviceMemory memory_;
+  StagingBuffer staging_buffer_;
+  Textures();
+  ~Textures();
 };
 
 struct UniformBuffers {

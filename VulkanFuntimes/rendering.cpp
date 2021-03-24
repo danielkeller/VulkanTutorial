@@ -7,6 +7,7 @@
 #include "glm/vec3.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "stb_image.h"
 
 #include "util.hpp"
 #include "driver.hpp"
@@ -19,10 +20,20 @@ TransferCommandPool::TransferCommandPool() {
       {vk::CommandPoolCreateFlagBits::eTransient, gGraphicsQueueFamilyIndex});
 }
 TransferCommandPool::~TransferCommandPool() {
-  // Wait for the transfers to finish
-  gGraphicsQueue.waitIdle();
   gDevice.destroy(gTransferCommandPool);
   gTransferCommandPool = nullptr;
+}
+TransferCommandBuffer::TransferCommandBuffer() {
+  cmd_ = gDevice.allocateCommandBuffers(
+      {gTransferCommandPool, vk::CommandBufferLevel::ePrimary, 1})[0];
+  cmd_.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+}
+
+TransferCommandBuffer::~TransferCommandBuffer() {
+  cmd_.end();
+  vk::SubmitInfo submit;
+  submit.setCommandBuffers(cmd_);
+  gGraphicsQueue.submit(submit);
 }
 
 vk::CommandPool gCommandPool;
@@ -82,7 +93,7 @@ struct Description {
 
 struct Vertex {
   glm::vec2 pos;
-  glm::vec3 color;
+  glm::vec2 uv;
 };
 template <>
 const vk::VertexInputBindingDescription Description<Vertex>::binding{
@@ -92,21 +103,18 @@ const std::initializer_list<vk::VertexInputAttributeDescription>
     Description<Vertex>::attribute{
         {/*location=*/0, /*binding=*/0, vk::Format::eR32G32Sfloat,
          offsetof(Vertex, pos)},
-        {/*location=*/1, /*binding=*/0, vk::Format::eR32G32B32Sfloat,
-         offsetof(Vertex, color)}};
+        {/*location=*/1, /*binding=*/0, vk::Format::eR32G32Sfloat,
+         offsetof(Vertex, uv)}};
 
-const std::vector<Vertex> vertices = {{{0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                                      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                                      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-                                      {{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}}};
+const std::vector<Vertex> vertices = {{{0.5f, -0.5f}, {1.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {1.0f, 1.0f}},
+                                      {{-0.5f, 0.5f}, {0.0f, 1.0f}},
+                                      {{-0.5f, -0.5f}, {0.0f, 0.0f}}};
 
 const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
-uint32_t getMemoryForBuffer(vk::Buffer buffer,
-                            vk::MemoryPropertyFlags memFlagRequirements) {
-  vk::MemoryRequirements memoryRequirements =
-      gDevice.getBufferMemoryRequirements(buffer);
-
+uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
+                      vk::MemoryPropertyFlags memFlagRequirements) {
   vk::PhysicalDeviceMemoryProperties memProperties =
       gPhysicalDevice.getMemoryProperties();
 
@@ -118,15 +126,24 @@ uint32_t getMemoryForBuffer(vk::Buffer buffer,
   throw std::runtime_error("No memory type found for buffer");
 }
 
-void copyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
-  vk::CommandBuffer cmd = gDevice.allocateCommandBuffers(
-      {gTransferCommandPool, vk::CommandBufferLevel::ePrimary, 1})[0];
-  cmd.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-  cmd.copyBuffer(src, dst, vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
-  cmd.end();
-  vk::SubmitInfo submit;
-  submit.setCommandBuffers(cmd);
-  gGraphicsQueue.submit(submit);
+MappedStagingBuffer StagingBuffer::map(vk::DeviceSize size) {
+  buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
+                                  vk::BufferUsageFlagBits::eTransferSrc,
+                                  vk::SharingMode::eExclusive});
+  uint32_t stagingMemoryType =
+      getMemoryFor(gDevice.getBufferMemoryRequirements(buffer_),
+                   vk::MemoryPropertyFlagBits::eHostVisible |
+                       vk::MemoryPropertyFlagBits::eHostCoherent);
+  memory_ = gDevice.allocateMemory({size, stagingMemoryType});
+  gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
+
+  void *mapped = gDevice.mapMemory(memory_, /*offset=*/0, size);
+  return MappedStagingBuffer{memory_, (char *)mapped};
+}
+MappedStagingBuffer::~MappedStagingBuffer() { gDevice.unmapMemory(memory_); }
+StagingBuffer::~StagingBuffer() {
+  gDevice.destroy(buffer_);
+  gDevice.free(memory_);
 }
 
 VertexBuffers::VertexBuffers() {
@@ -136,19 +153,9 @@ VertexBuffers::VertexBuffers() {
   vk::DeviceSize indexSize = sizeof(uint16_t) * indices.size();
   vk::DeviceSize size = vertexSize + indexSize;
 
-  staging_buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
-                                          vk::BufferUsageFlagBits::eTransferSrc,
-                                          vk::SharingMode::eExclusive});
-  uint32_t stagingMemoryType = getMemoryForBuffer(
-      staging_buffer_, vk::MemoryPropertyFlagBits::eHostVisible |
-                           vk::MemoryPropertyFlagBits::eHostCoherent);
-  staging_memory_ = gDevice.allocateMemory({size, stagingMemoryType});
-  gDevice.bindBufferMemory(staging_buffer_, staging_memory_, /*offset=*/0);
-
-  void *mapped = gDevice.mapMemory(staging_memory_, /*offset=*/0, size);
-  std::copy_n((char *)&vertices[0], vertexSize, (char *)mapped);
-  std::copy_n((char *)&indices[0], indexSize, (char *)mapped + index_offset_);
-  gDevice.unmapMemory(staging_memory_);
+  MappedStagingBuffer mapped = staging_buffer_.map(size);
+  std::copy_n((char *)&vertices[0], vertexSize, mapped.pointer_);
+  std::copy_n((char *)&indices[0], indexSize, mapped.pointer_ + index_offset_);
 
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
                                   vk::BufferUsageFlagBits::eIndexBuffer |
@@ -157,15 +164,104 @@ VertexBuffers::VertexBuffers() {
                                   vk::SharingMode::eExclusive});
 
   uint32_t memoryType =
-      getMemoryForBuffer(buffer_, vk::MemoryPropertyFlagBits::eDeviceLocal);
+      getMemoryFor(gDevice.getBufferMemoryRequirements(buffer_),
+                   vk::MemoryPropertyFlagBits::eDeviceLocal);
   memory_ = gDevice.allocateMemory({size, memoryType});
   gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
-  copyBuffer(staging_buffer_, buffer_, size);
+
+  TransferCommandBuffer transfer;
+  transfer.cmd_.copyBuffer(staging_buffer_.buffer_, buffer_,
+                           vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
 }
 VertexBuffers::~VertexBuffers() {
-  gDevice.destroy(staging_buffer_);
-  gDevice.free(staging_memory_);
   gDevice.destroy(buffer_);
+  gDevice.free(memory_);
+}
+
+vk::Sampler gSampler;
+vk::ImageView gTextureImageView;
+
+Textures::Textures() {
+  int width, height, channels;
+  std::unique_ptr<stbi_uc, void (*)(void *)> cpixels(
+      stbi_load("Textures/test.jpg", &width, &height, &channels,
+                STBI_rgb_alpha),
+      stbi_image_free);
+  if (!cpixels)
+    throw std::runtime_error(std::string("stbi_load: ") +
+                             stbi_failure_reason());
+
+  vk::DeviceSize size = width * height * 4;
+  MappedStagingBuffer mapped = staging_buffer_.map(size);
+  std::copy_n(cpixels.get(), size, mapped.pointer_);
+
+  vk::Extent3D extent(width, height, 1);
+
+  image_ = gDevice.createImage(
+      {/*flags=*/{}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, extent,
+       /*mipLevels=*/1, /*arrayLayers=*/1, vk::SampleCountFlagBits::e1,
+       vk::ImageTiling::eOptimal,
+       vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+       vk::SharingMode::eExclusive, /*queueFamilyIndices=*/{}});
+
+  uint32_t memoryType = getMemoryFor(gDevice.getImageMemoryRequirements(image_),
+                                     vk::MemoryPropertyFlagBits::eDeviceLocal);
+  memory_ = gDevice.allocateMemory({size, memoryType});
+  gDevice.bindImageMemory(image_, memory_, /*offset=*/0);
+
+  TransferCommandBuffer transfer;
+  vk::ImageSubresourceRange wholeImage(vk::ImageAspectFlagBits::eColor,
+                                       /*baseMip=*/0,
+                                       /*levelCount=*/1, /*baseLayer=*/0,
+                                       /*layerCount=*/1);
+
+  vk::ImageMemoryBarrier toTransferDst(
+      /*srcAccess=*/{}, /*dstAccess=*/vk::AccessFlagBits::eTransferWrite,
+      /*oldLayout=*/vk::ImageLayout::eUndefined,
+      /*newLayout=*/vk::ImageLayout::eTransferDstOptimal,
+      VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image_, wholeImage);
+  transfer.cmd_.pipelineBarrier(
+      /*srcStage=*/vk::PipelineStageFlagBits::eTopOfPipe,
+      /*dstStage=*/vk::PipelineStageFlagBits::eTransfer,
+      /*dependencyFlags=*/{}, {}, {}, toTransferDst);
+
+  vk::ImageSubresourceLayers wholeImageLayers(vk::ImageAspectFlagBits::eColor,
+                                              /*mipLevel=*/0, /*baseLayer=*/0,
+                                              /*layerCount=*/1);
+  vk::BufferImageCopy copy(/*offset=*/0, /*bufferRowLength=*/0,
+                           /*bufferImageHeight=*/0, wholeImageLayers,
+                           vk::Offset3D(0, 0, 0), extent);
+  transfer.cmd_.copyBufferToImage(staging_buffer_.buffer_, image_,
+                                  vk::ImageLayout::eTransferDstOptimal, copy);
+
+  vk::ImageMemoryBarrier toShader(
+      /*srcAccess=*/vk::AccessFlagBits::eTransferWrite,
+      /*dstAccess=*/vk::AccessFlagBits::eShaderRead,
+      /*oldLayout=*/vk::ImageLayout::eTransferDstOptimal,
+      /*newLayout=*/vk::ImageLayout::eShaderReadOnlyOptimal,
+      VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image_, wholeImage);
+  transfer.cmd_.pipelineBarrier(
+      /*srcStage=*/vk::PipelineStageFlagBits::eTransfer,
+      /*dstStage=*/vk::PipelineStageFlagBits::eFragmentShader,
+      /*dependencyFlags=*/{}, {}, {}, toShader);
+
+  gTextureImageView = gDevice.createImageView(
+      {/*flags=*/{}, image_, vk::ImageViewType::e2D, vk::Format::eR8G8B8A8Srgb,
+       /*componentMapping=*/{}, wholeImage});
+
+  vk::SamplerCreateInfo samplerCreate(/*flags=*/{}, vk::Filter::eLinear,
+                                      vk::Filter::eLinear,
+                                      vk::SamplerMipmapMode::eLinear);
+  samplerCreate.setAnisotropyEnable(true);
+  samplerCreate.setMaxAnisotropy(
+      gPhysicalDeviceProperties.limits.maxSamplerAnisotropy);
+  gSampler = gDevice.createSampler(samplerCreate);
+}
+
+Textures::~Textures() {
+  gDevice.destroy(gSampler);
+  gDevice.destroy(gTextureImageView);
+  gDevice.destroy(image_);
   gDevice.free(memory_);
 }
 
@@ -197,11 +293,14 @@ Pipeline::Pipeline() {
   vk::PipelineColorBlendStateCreateInfo colorBlend(
       /*flags=*/{}, /*logicOpEnable=*/false, /*logicOp=*/{}, colorBlend1);
 
-  vk::DescriptorSetLayoutBinding binding(
-      /*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
-      vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr);
+  std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
+      {/*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
+       vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr},
+      {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
+       /*descriptorCount=*/1, vk::ShaderStageFlagBits::eFragment,
+       /*immutableSamplers=*/nullptr}};
   descriptorSetLayout_ =
-      gDevice.createDescriptorSetLayout({/*flags=*/{}, binding});
+      gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
 
   layout_ = gDevice.createPipelineLayout({/*flags=*/{}, descriptorSetLayout_,
                                           /*pushConstantRanges=*/{}});
@@ -254,9 +353,10 @@ UniformBuffers::UniformBuffers() {
   gUniformBuffer = gDevice.createBuffer(
       {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
        vk::SharingMode::eExclusive});
-  uint32_t stagingMemoryType = getMemoryForBuffer(
-      gUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible |
-                          vk::MemoryPropertyFlagBits::eHostCoherent);
+  uint32_t stagingMemoryType =
+      getMemoryFor(gDevice.getBufferMemoryRequirements(gUniformBuffer),
+                   vk::MemoryPropertyFlagBits::eHostVisible |
+                       vk::MemoryPropertyFlagBits::eHostCoherent);
   memory_ = gDevice.allocateMemory({size, stagingMemoryType});
   gDevice.bindBufferMemory(gUniformBuffer, memory_, /*offset=*/0);
   mapping_ = (char *)gDevice.mapMemory(memory_, /*offset=*/0, size);
@@ -291,10 +391,13 @@ UniformBuffers::~UniformBuffers() {
 }
 
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
-  vk::DescriptorPoolSize size(vk::DescriptorType::eUniformBuffer,
-                              /*count=*/gSwapchainImageCount);
+  std::initializer_list<vk::DescriptorPoolSize> sizes = {
+      {vk::DescriptorType::eUniformBuffer,
+       /*count=*/gSwapchainImageCount},
+      {vk::DescriptorType::eCombinedImageSampler,
+       /*count=*/gSwapchainImageCount}};
   pool_ = gDevice.createDescriptorPool(
-      {/*flags=*/{}, /*maxSets=*/gSwapchainImageCount, size});
+      {/*flags=*/{}, /*maxSets=*/gSwapchainImageCount, sizes});
 
   std::vector<vk::DescriptorSetLayout> layouts(gSwapchainImageCount, layout);
   descriptorSets_ = gDevice.allocateDescriptorSets({pool_, layouts});
@@ -302,11 +405,18 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
   for (size_t i = 0; i < gSwapchainImageCount; ++i) {
     vk::DeviceSize stride = uniformSize<MVP>();
     vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, stride * i, stride);
-    vk::WriteDescriptorSet write(
+    vk::WriteDescriptorSet writeBuffer(
         descriptorSets_[i], /*binding=*/0, /*arrayElement=*/0,
-        vk::DescriptorType::eUniformBuffer, /*imageInfo=*/{}, bufferInfo,
+        vk::DescriptorType::eUniformBuffer, {}, bufferInfo,
         /*texelBufferView=*/{});
-    gDevice.updateDescriptorSets(write, {});
+
+    vk::DescriptorImageInfo imageInfo(gSampler, gTextureImageView,
+                                      vk::ImageLayout::eShaderReadOnlyOptimal);
+    vk::WriteDescriptorSet writeImage(
+        descriptorSets_[i], /*binding=*/1, /*arrayElement=*/0,
+        vk::DescriptorType::eCombinedImageSampler, imageInfo, {},
+        /*texelBufferView=*/{});
+    gDevice.updateDescriptorSets({writeBuffer, writeImage}, {});
   }
 }
 

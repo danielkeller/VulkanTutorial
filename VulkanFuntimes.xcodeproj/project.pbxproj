@@ -11,7 +11,6 @@
 		3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E42607A6470003ECCF /* swapchain.cpp */; };
 		3786A1E92607A6520003ECCF /* rendering.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E72607A6520003ECCF /* rendering.cpp */; };
 		3786A1EE260B6BD40003ECCF /* stb.c in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1ED260B6BD40003ECCF /* stb.c */; };
-		3786A1F1260B9FEB0003ECCF /* test.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 3786A1F0260B9FEB0003ECCF /* test.jpg */; };
 		3786A211260BB8040003ECCF /* triangle.vert in Sources */ = {isa = PBXBuildFile; fileRef = 37C4644726013D550018E3F8 /* triangle.vert */; };
 		3786A212260BB8040003ECCF /* test.frag in Sources */ = {isa = PBXBuildFile; fileRef = 37C4644926013D880018E3F8 /* test.frag */; };
 		3786A213260BB8040003ECCF /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
@@ -26,11 +25,11 @@
 		3786A21D260BB8120003ECCF /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642525FFDC270018E3F8 /* Cocoa.framework */; };
 		3786A21E260BB8170003ECCF /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642725FFDC2F0018E3F8 /* IOKit.framework */; };
 		3786A221260BB8280003ECCF /* libglfw3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642025FFDB190018E3F8 /* libglfw3.a */; };
-		3786A224260BB83E0003ECCF /* test.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 3786A1F0260B9FEB0003ECCF /* test.jpg */; };
 		3786A23B260BC4F20003ECCF /* vulkan in Resources */ = {isa = PBXBuildFile; fileRef = 37C4644225FFE95E0018E3F8 /* vulkan */; };
 		3786A23D260BC4F70003ECCF /* libvulkan.1.2.170.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4643A25FFE7E30018E3F8 /* libvulkan.1.2.170.dylib */; };
 		3786A241260BC5110003ECCF /* libMoltenVK.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 37C4643E25FFE8700018E3F8 /* libMoltenVK.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		3786A246260BC6380003ECCF /* libVkLayer_khronos_validation.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 3786A245260BC6290003ECCF /* libVkLayer_khronos_validation.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		3786A248260BCD300003ECCF /* Textures in Resources */ = {isa = PBXBuildFile; fileRef = 3786A247260BCD300003ECCF /* Textures */; };
 		37C4641725FFD9980018E3F8 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
 		37C4642125FFDB190018E3F8 /* libglfw3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642025FFDB190018E3F8 /* libglfw3.a */; };
 		37C4642625FFDC270018E3F8 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642525FFDC270018E3F8 /* Cocoa.framework */; };
@@ -119,12 +118,11 @@
 		3786A1EA2607AFB20003ECCF /* glm */ = {isa = PBXFileReference; lastKnownFileType = folder; path = glm; sourceTree = "<group>"; };
 		3786A1EC260B6B9B0003ECCF /* stb_image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = stb_image.h; sourceTree = "<group>"; };
 		3786A1ED260B6BD40003ECCF /* stb.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stb.c; sourceTree = "<group>"; };
-		3786A1F0260B9FEB0003ECCF /* test.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = test.jpg; sourceTree = "<group>"; };
 		3786A1F6260BB7960003ECCF /* VulkanApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VulkanApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3786A203260BB7990003ECCF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		3786A206260BB7990003ECCF /* VulkanApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VulkanApp.entitlements; sourceTree = "<group>"; };
-		3786A236260BC49B0003ECCF /* vulkan.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = vulkan.framework; sourceTree = "<group>"; };
 		3786A245260BC6290003ECCF /* libVkLayer_khronos_validation.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libVkLayer_khronos_validation.dylib; sourceTree = "<group>"; };
+		3786A247260BCD300003ECCF /* Textures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Textures; sourceTree = "<group>"; };
 		378E7E5426025F9A00013BD7 /* vulkan */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vulkan; sourceTree = "<group>"; };
 		37C4641325FFD9980018E3F8 /* VulkanFuntimes */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VulkanFuntimes; sourceTree = BUILT_PRODUCTS_DIR; };
 		37C4641625FFD9980018E3F8 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
@@ -165,14 +163,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3786A1EF260B9FDC0003ECCF /* Textures */ = {
-			isa = PBXGroup;
-			children = (
-				3786A1F0260B9FEB0003ECCF /* test.jpg */,
-			);
-			path = Textures;
-			sourceTree = "<group>";
-		};
 		3786A1F7260BB7960003ECCF /* VulkanApp */ = {
 			isa = PBXGroup;
 			children = (
@@ -225,7 +215,6 @@
 			isa = PBXGroup;
 			children = (
 				3786A245260BC6290003ECCF /* libVkLayer_khronos_validation.dylib */,
-				3786A236260BC49B0003ECCF /* vulkan.framework */,
 				37C4643A25FFE7E30018E3F8 /* libvulkan.1.2.170.dylib */,
 				37C4643E25FFE8700018E3F8 /* libMoltenVK.dylib */,
 				37C4642025FFDB190018E3F8 /* libglfw3.a */,
@@ -256,7 +245,7 @@
 		37C4644125FFE92D0018E3F8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				3786A1EF260B9FDC0003ECCF /* Textures */,
+				3786A247260BCD300003ECCF /* Textures */,
 				37C4644225FFE95E0018E3F8 /* vulkan */,
 			);
 			path = Resources;
@@ -353,7 +342,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3786A224260BB83E0003ECCF /* test.jpg in Resources */,
+				3786A248260BCD300003ECCF /* Textures in Resources */,
 				3786A23B260BC4F20003ECCF /* vulkan in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -363,7 +352,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				37C4644325FFE95E0018E3F8 /* vulkan in Resources */,
-				3786A1F1260B9FEB0003ECCF /* test.jpg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

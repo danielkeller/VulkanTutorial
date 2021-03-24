@@ -5,11 +5,6 @@
 #include "rendering.hpp"
 #include "util.hpp"
 
-VertexBuffers uploadData() {
-  TransferCommandPool transferCommandPool;
-  return VertexBuffers();
-}
-
 void mainApp() {
   Window window;
   Instance instance;
@@ -19,10 +14,15 @@ void mainApp() {
   RenderPass renderPass;
   FpsCount fpsCount;
   
-  UniformBuffers uniformBuffers;
   Pipeline pipeline1;
+  
+  TransferCommandPool transferCommandPool;
+  VertexBuffers vertexBuffers1;
+  Textures textures1;
+  gGraphicsQueue.waitIdle();
+  
+  UniformBuffers uniformBuffers;
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
-  VertexBuffers vertexBuffers1 = uploadData();
 
   while (!glfwWindowShouldClose(gWindow)) {
     swapchain.resizeToWindow();

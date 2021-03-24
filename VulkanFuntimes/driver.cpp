@@ -9,7 +9,6 @@ void windowSizeCallback(GLFWwindow *, int, int) { gWindowSizeChanged = true; }
 Window::Window() {
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   gWindow = glfwCreateWindow(800, 600, "Hello World", nullptr, nullptr);
   glfwSetFramebufferSizeCallback(gWindow, windowSizeCallback);
 }
@@ -36,7 +35,10 @@ Instance::Instance() {
   extensions.push_back("VK_KHR_get_physical_device_properties2");
 
   std::initializer_list<const char *> enabledLayerNames = {
-      "VK_LAYER_KHRONOS_validation"};
+#if DEBUG
+    "VK_LAYER_KHRONOS_validation"
+#endif
+  };
 
   vk::InstanceCreateInfo instInfo(vk::InstanceCreateFlags(), &appInfo,
                                   enabledLayerNames, extensions);
@@ -53,7 +55,7 @@ Instance::Instance() {
       gPhysicalDevice = device;
     }
   }
-  
+
   gPhysicalDeviceProperties = gPhysicalDevice.getProperties();
 }
 Instance::~Instance() {
@@ -100,9 +102,11 @@ Device::Device() {
     if (ext.extensionName == std::string_view("VK_KHR_portability_subset"))
       extensions.push_back("VK_KHR_portability_subset");
 
+  vk::PhysicalDeviceFeatures features;
+  features.setSamplerAnisotropy(true);
   gDevice = gPhysicalDevice.createDevice({/*flags=*/{}, queues,
-                                          /*pEnabledLayerNames=*/{},
-                                          /*extensions=*/extensions});
+                                          /*pEnabledLayerNames=*/{}, extensions,
+                                          &features});
 
   gGraphicsQueue = gDevice.getQueue(gGraphicsQueueFamilyIndex,
                                     /*queueIndex=*/0);
