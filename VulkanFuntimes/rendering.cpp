@@ -178,7 +178,6 @@ VertexBuffers::~VertexBuffers() {
   gDevice.free(memory_);
 }
 
-vk::Sampler gSampler;
 vk::ImageView gTextureImageView;
 
 Textures::Textures() {
@@ -248,18 +247,9 @@ Textures::Textures() {
   gTextureImageView = gDevice.createImageView(
       {/*flags=*/{}, image_, vk::ImageViewType::e2D, vk::Format::eR8G8B8A8Srgb,
        /*componentMapping=*/{}, wholeImage});
-
-  vk::SamplerCreateInfo samplerCreate(/*flags=*/{}, vk::Filter::eLinear,
-                                      vk::Filter::eLinear,
-                                      vk::SamplerMipmapMode::eLinear);
-  samplerCreate.setAnisotropyEnable(true);
-  samplerCreate.setMaxAnisotropy(
-      gPhysicalDeviceProperties.limits.maxSamplerAnisotropy);
-  gSampler = gDevice.createSampler(samplerCreate);
 }
 
 Textures::~Textures() {
-  gDevice.destroy(gSampler);
   gDevice.destroy(gTextureImageView);
   gDevice.destroy(image_);
   gDevice.free(memory_);
@@ -293,12 +283,20 @@ Pipeline::Pipeline() {
   vk::PipelineColorBlendStateCreateInfo colorBlend(
       /*flags=*/{}, /*logicOpEnable=*/false, /*logicOp=*/{}, colorBlend1);
 
+  vk::SamplerCreateInfo samplerCreate(/*flags=*/{}, vk::Filter::eLinear,
+                                      vk::Filter::eLinear,
+                                      vk::SamplerMipmapMode::eLinear);
+  samplerCreate.setAnisotropyEnable(true);
+  samplerCreate.setMaxAnisotropy(
+      gPhysicalDeviceProperties.limits.maxSamplerAnisotropy);
+  sampler_ = gDevice.createSampler(samplerCreate);
+
   std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
       {/*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
        vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr},
       {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
-       /*descriptorCount=*/1, vk::ShaderStageFlagBits::eFragment,
-       /*immutableSamplers=*/nullptr}};
+       vk::ShaderStageFlagBits::eFragment,
+       /*immutableSamplers=*/sampler_}};
   descriptorSetLayout_ =
       gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
 
@@ -332,6 +330,7 @@ Pipeline::Pipeline() {
 Pipeline::~Pipeline() {
   gDevice.destroy(pipeline_);
   gDevice.destroy(layout_);
+  gDevice.destroy(sampler_);
   gDevice.destroy(descriptorSetLayout_);
 }
 
@@ -410,7 +409,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
         vk::DescriptorType::eUniformBuffer, {}, bufferInfo,
         /*texelBufferView=*/{});
 
-    vk::DescriptorImageInfo imageInfo(gSampler, gTextureImageView,
+    vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, gTextureImageView,
                                       vk::ImageLayout::eShaderReadOnlyOptimal);
     vk::WriteDescriptorSet writeImage(
         descriptorSets_[i], /*binding=*/1, /*arrayElement=*/0,

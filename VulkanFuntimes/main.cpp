@@ -19,11 +19,11 @@ void mainApp() {
   TransferCommandPool transferCommandPool;
   VertexBuffers vertexBuffers1;
   Textures textures1;
-  gGraphicsQueue.waitIdle();
-  
   UniformBuffers uniformBuffers;
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
-
+  
+  gGraphicsQueue.waitIdle();
+  
   while (!glfwWindowShouldClose(gWindow)) {
     swapchain.resizeToWindow();
     Semaphores semaphores;

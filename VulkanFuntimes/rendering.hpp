@@ -29,6 +29,7 @@ struct RenderPass {
 struct Pipeline {
   vk::DescriptorSetLayout descriptorSetLayout_;
   vk::PipelineLayout layout_;
+  vk::Sampler sampler_;
   vk::Pipeline pipeline_;
   Pipeline();
   ~Pipeline();
