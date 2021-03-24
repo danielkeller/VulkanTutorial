@@ -16,9 +16,11 @@ extern vk::Viewport gViewport;
 extern vk::Rect2D gScissor;
 
 struct Swapchain {
-  Swapchain();
-  ~Swapchain();
+  Swapchain() { resizeToWindow(); }
+  ~Swapchain() { destroy(); }
   uint32_t frameNum_ = 0;
+  void resizeToWindow();
+  void destroy();
   vk::Semaphore getFirstImage();
   vk::Semaphore getNextImage(vk::Semaphore renderFinishedSemaphore);
 };

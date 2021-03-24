@@ -20,17 +20,21 @@ vk::Extent2D windowExtent() {
   return vk::Extent2D(width, height);
 }
 
-Swapchain::Swapchain() {
-  vk::SurfaceCapabilitiesKHR caps =
-      gPhysicalDevice.getSurfaceCapabilitiesKHR(gSurface);
-  // The min image count is the minimum number of images in the swapchain for
-  // the application to be able to eventually aquire one of them
-  uint32_t requestedImages = kMaxImagesInFlight + caps.minImageCount - 1;
+void Swapchain::resizeToWindow() {
+  if (gSwapchainExtent == windowExtent()) return;
+  destroy();
+  
   gSwapchainExtent = windowExtent();
   gViewport =
       vk::Viewport(0, 0, gSwapchainExtent.width, gSwapchainExtent.height,
                    /*minZ=*/0., /*maxZ=*/1.);
   gScissor = vk::Rect2D(vk::Offset2D(0, 0), gSwapchainExtent);
+  
+  vk::SurfaceCapabilitiesKHR caps =
+      gPhysicalDevice.getSurfaceCapabilitiesKHR(gSurface);
+  // The min image count is the minimum number of images in the swapchain for
+  // the application to be able to eventually aquire one of them
+  uint32_t requestedImages = kMaxImagesInFlight + caps.minImageCount - 1;
 
   gSwapchain = gDevice.createSwapchainKHR(
       {/*flags=*/{}, gSurface, requestedImages, kPresentFormat,
@@ -63,6 +67,7 @@ void checkResizeOrThrowFail(const char *context, vk::Result result) {
 }
 
 vk::Semaphore Swapchain::getFirstImage() {
+  frameNum_ = (frameNum_ + 1) % kMaxImagesInFlight;
   vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
   vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
       gSwapchain, UINT64_MAX, imageAvailableSemaphore,
@@ -88,7 +93,7 @@ vk::Semaphore Swapchain::getNextImage(vk::Semaphore renderFinishedSemaphore) {
   return imageAvailableSemaphore;
 }
 
-Swapchain::~Swapchain() {
+void Swapchain::destroy() {
   for (vk::ImageView imageView : gSwapchainImageViews)
     gDevice.destroy(imageView);
   gSwapchainImages.clear();

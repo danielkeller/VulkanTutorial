@@ -15,19 +15,21 @@ void mainApp() {
   Instance instance;
   Surface surface;
   Device device;
+  Swapchain swapchain;
   RenderPass renderPass;
-  Pipeline pipeline1;
-  VertexBuffers vertexBuffers = uploadData();
   FpsCount fpsCount;
+  
+  UniformBuffers uniformBuffers;
+  Pipeline pipeline1;
+  DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
+  VertexBuffers vertexBuffers1 = uploadData();
 
   while (!glfwWindowShouldClose(gWindow)) {
-    Swapchain swapchain;
+    swapchain.resizeToWindow();
     Semaphores semaphores;
     Framebuffers framebuffers;
-    UniformBuffers uniformBuffers;
-    DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
     CommandPool commandPool;
-    CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers);
+    CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers1);
     gWindowSizeChanged = false;
     std::cerr << "resize " << gSwapchainExtent.width << "x"
               << gSwapchainExtent.height << "\n";
