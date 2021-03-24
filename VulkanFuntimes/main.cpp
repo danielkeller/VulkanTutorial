@@ -16,18 +16,18 @@ void mainApp() {
   Surface surface;
   Device device;
   RenderPass renderPass;
+  Semaphores semaphores;
   Pipeline pipeline1;
-  VertexBuffers vertexBuffers = uploadData();
+  UniformBuffers uniformBuffers;
+  DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
+  VertexBuffers vertexBuffers1 = uploadData();
   FpsCount fpsCount;
 
   while (!glfwWindowShouldClose(gWindow)) {
     Swapchain swapchain;
-    Semaphores semaphores;
     Framebuffers framebuffers;
-    UniformBuffers uniformBuffers;
-    DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
-    CommandPool commandPool;
-    CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers);
+    PassCommandBuffers passCommandBuffers;
+    CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers1);
     gWindowSizeChanged = false;
     std::cerr << "resize " << gSwapchainExtent.width << "x"
               << gSwapchainExtent.height << "\n";
@@ -40,27 +40,27 @@ void mainApp() {
         glfwWaitEvents();
       }
 
-      if (gInFlightFences[gSwapchainCurrentImage]) {
+      if (gInFlightFences[gFrameIndex]) {
         throwFail("waitForFences",
-                  gDevice.waitForFences(gInFlightFences[gSwapchainCurrentImage],
+                  gDevice.waitForFences(gInFlightFences[gFrameIndex],
                                         /*waitAll=*/false,
                                         /*timeout=*/UINT64_MAX));
-        gDevice.resetFences(gInFlightFences[gSwapchainCurrentImage]);
+        gDevice.resetFences(gInFlightFences[gFrameIndex]);
       }
 
       vk::PipelineStageFlags waitDestStage(
           vk::PipelineStageFlagBits::eColorAttachmentOutput);
-      vk::CommandBuffer commandBuffer(
-          commandBuffers1.commandBuffers_[gSwapchainCurrentImage]);
+      auto commandBuffers = {gBeginPass[gSwapchainCurrentImage],
+                             commandBuffers1.commandBuffers_[gFrameIndex],
+                             gEndPass};
       vk::Semaphore renderFinishedSemaphore =
-          gRenderFinishedSemaphores[gSwapchainCurrentImage];
+          gRenderFinishedSemaphores[gFrameIndex];
       vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,
-                            commandBuffer,
+                            commandBuffers,
                             /*signal=*/renderFinishedSemaphore);
 
-      gInFlightFences[gSwapchainCurrentImage] =
-          gFrameFences[gSwapchainCurrentImage];
-      gGraphicsQueue.submit({submit}, gInFlightFences[gSwapchainCurrentImage]);
+      gInFlightFences[gFrameIndex] = gFrameFences[gFrameIndex];
+      gGraphicsQueue.submit({submit}, gInFlightFences[gFrameIndex]);
 
       imageAvailableSemaphore = swapchain.getNextImage(renderFinishedSemaphore);
 

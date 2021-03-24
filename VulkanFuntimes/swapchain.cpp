@@ -6,8 +6,8 @@
 #include "GLFW/glfw3.h"
 
 vk::SwapchainKHR gSwapchain;
-uint32_t gSwapchainImageCount;
 uint32_t gSwapchainCurrentImage;
+uint32_t gFrameIndex = 0;
 std::vector<vk::Image> gSwapchainImages;
 std::vector<vk::ImageView> gSwapchainImageViews;
 vk::Extent2D gSwapchainExtent;
@@ -42,7 +42,6 @@ Swapchain::Swapchain() {
        /*clipped=*/true});
 
   gSwapchainImages = gDevice.getSwapchainImagesKHR(gSwapchain);
-  gSwapchainImageCount = (uint32_t)gSwapchainImages.size();
   gSwapchainImageViews.clear();
   for (vk::Image image : gSwapchainImages) {
     gSwapchainImageViews.push_back(gDevice.createImageView(
@@ -63,7 +62,8 @@ void checkResizeOrThrowFail(const char *context, vk::Result result) {
 }
 
 vk::Semaphore Swapchain::getFirstImage() {
-  vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
+  vk::Semaphore imageAvailableSemaphore =
+      gImageAvailableSemaphores[gFrameIndex];
   vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
       gSwapchain, UINT64_MAX, imageAvailableSemaphore,
       /*fence=*/nullptr);
@@ -73,8 +73,9 @@ vk::Semaphore Swapchain::getFirstImage() {
   return imageAvailableSemaphore;
 }
 vk::Semaphore Swapchain::getNextImage(vk::Semaphore renderFinishedSemaphore) {
-  frameNum_ = (frameNum_ + 1) % kMaxImagesInFlight;
-  vk::Semaphore imageAvailableSemaphore = gImageAvailableSemaphores[frameNum_];
+  gFrameIndex = (gFrameIndex + 1) % kMaxImagesInFlight;
+  vk::Semaphore imageAvailableSemaphore =
+      gImageAvailableSemaphores[gFrameIndex];
   vk::ResultValue<uint32_t> imageIndex_or = gDevice.acquireNextImageKHR(
       gSwapchain, UINT64_MAX, imageAvailableSemaphore,
       /*fence=*/nullptr);
@@ -97,27 +98,27 @@ Swapchain::~Swapchain() {
   gSwapchain = nullptr;
 }
 
-std::vector<vk::Fence> gFrameFences;
-std::vector<vk::Fence> gInFlightFences;
-std::vector<vk::Semaphore> gImageAvailableSemaphores;
-std::vector<vk::Semaphore> gRenderFinishedSemaphores;
+std::array<vk::Fence, kMaxImagesInFlight> gFrameFences;
+std::array<vk::Fence, kMaxImagesInFlight> gInFlightFences;
+std::array<vk::Semaphore, kMaxImagesInFlight> gImageAvailableSemaphores;
+std::array<vk::Semaphore, kMaxImagesInFlight> gRenderFinishedSemaphores;
 
 Semaphores::Semaphores() {
-  for (size_t i = 0; i < gSwapchainImageCount; ++i) {
-    gFrameFences.push_back(gDevice.createFence({}));
-    gInFlightFences.push_back(nullptr);
-    gRenderFinishedSemaphores.push_back(gDevice.createSemaphore({}));
-    gImageAvailableSemaphores.push_back(gDevice.createSemaphore({}));
+  for (size_t i = 0; i < kMaxImagesInFlight; ++i) {
+    gFrameFences[i] = gDevice.createFence({});
+    gInFlightFences[i] = nullptr;
+    gRenderFinishedSemaphores[i] = gDevice.createSemaphore({});
+    gImageAvailableSemaphores[i] = gDevice.createSemaphore({});
   }
 }
 Semaphores::~Semaphores() {
   for (vk::Fence fence : gFrameFences) gDevice.destroy(fence);
   for (vk::Semaphore sem : gRenderFinishedSemaphores) gDevice.destroy(sem);
   for (vk::Semaphore sem : gImageAvailableSemaphores) gDevice.destroy(sem);
-  gFrameFences.clear();
-  gInFlightFences.clear();
-  gRenderFinishedSemaphores.clear();
-  gImageAvailableSemaphores.clear();
+  gFrameFences = {};
+  gInFlightFences = {};
+  gRenderFinishedSemaphores = {};
+  gImageAvailableSemaphores = {};
 }
 
 std::vector<vk::Framebuffer> gFramebuffers;
@@ -133,3 +134,35 @@ Framebuffers::~Framebuffers() {
   for (vk::Framebuffer fb : gFramebuffers) gDevice.destroy(fb);
   gFramebuffers.clear();
 }
+
+std::vector<vk::CommandBuffer> gBeginPass;
+vk::CommandBuffer gEndPass;
+
+PassCommandBuffers::PassCommandBuffers() {
+  commandPool_ =
+      gDevice.createCommandPool({/*flags=*/{}, gGraphicsQueueFamilyIndex});
+
+  uint32_t nBuffers = (uint32_t)gFramebuffers.size();
+  gBeginPass = gDevice.allocateCommandBuffers(
+      {commandPool_, vk::CommandBufferLevel::ePrimary, nBuffers});
+
+  for (uint32_t i = 0; i < nBuffers; ++i) {
+    vk::CommandBuffer buf = gBeginPass[i];
+    buf.begin(vk::CommandBufferBeginInfo());
+    vk::ClearValue clearColor(
+        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}));
+    buf.beginRenderPass(
+        {gRenderPass, gFramebuffers[i], /*renderArea=*/
+         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
+        vk::SubpassContents::eInline);
+    buf.end();
+  }
+
+  gEndPass = gDevice.allocateCommandBuffers(
+      {commandPool_, vk::CommandBufferLevel::ePrimary, 1})[0];
+  gEndPass.begin(vk::CommandBufferBeginInfo());
+  gEndPass.endRenderPass();
+  gEndPass.end();
+}
+
+PassCommandBuffers::~PassCommandBuffers() { gDevice.destroy(commandPool_); }

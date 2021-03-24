@@ -9,12 +9,6 @@ struct TransferCommandPool {
   ~TransferCommandPool();
 };
 
-extern vk::CommandPool gCommandPool;
-struct CommandPool {
-  CommandPool();
-  ~CommandPool();
-};
-
 extern vk::RenderPass gRenderPass;
 struct RenderPass {
   RenderPass();
@@ -57,10 +51,11 @@ struct DescriptorPool {
 };
 
 struct CommandBuffers {
+  vk::CommandPool commandPool_;
   std::vector<vk::CommandBuffer> commandBuffers_;
   CommandBuffers(const Pipeline& pipeline, const DescriptorPool& descriptorPool,
                  const VertexBuffers& vertices);
-  // Buffers are freed by the pool
+  ~CommandBuffers();
 };
 
 #endif /* rendering_hpp */

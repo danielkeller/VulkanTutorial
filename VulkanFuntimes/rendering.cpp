@@ -25,14 +25,6 @@ TransferCommandPool::~TransferCommandPool() {
   gTransferCommandPool = nullptr;
 }
 
-vk::CommandPool gCommandPool;
-
-CommandPool::CommandPool() {
-  gCommandPool =
-      gDevice.createCommandPool({/*flags=*/{}, gGraphicsQueueFamilyIndex});
-}
-CommandPool::~CommandPool() { gDevice.destroy(gCommandPool); }
-
 vk::ShaderModule readShader(const std::string &filename) {
   std::ifstream file(filename, std::ios::ate | std::ios::binary);
   if (!file.is_open())
@@ -250,7 +242,7 @@ struct MVP {
 vk::Buffer gUniformBuffer;
 
 UniformBuffers::UniformBuffers() {
-  vk::DeviceSize size = uniformSize<MVP>() * gSwapchainImageCount;
+  vk::DeviceSize size = uniformSize<MVP>() * kMaxImagesInFlight;
   gUniformBuffer = gDevice.createBuffer(
       {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
        vk::SharingMode::eExclusive});
@@ -278,7 +270,7 @@ void UniformBuffers::update() {
                        gSwapchainExtent.width / (float)gSwapchainExtent.height,
                        /*znear=*/0.1f, /*zfar=*/10.f);
 
-  size_t offset = gSwapchainCurrentImage * uniformSize<MVP>();
+  size_t offset = gFrameIndex * uniformSize<MVP>();
   std::copy_n((char *)&mvp, uniformSize<MVP>(), mapping_ + offset);
   // eHostCoherent handles flushes and the later queue submit creates a memory
   // barrier
@@ -292,14 +284,14 @@ UniformBuffers::~UniformBuffers() {
 
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
   vk::DescriptorPoolSize size(vk::DescriptorType::eUniformBuffer,
-                              /*count=*/gSwapchainImageCount);
+                              /*count=*/kMaxImagesInFlight);
   pool_ = gDevice.createDescriptorPool(
-      {/*flags=*/{}, /*maxSets=*/gSwapchainImageCount, size});
+      {/*flags=*/{}, /*maxSets=*/kMaxImagesInFlight, size});
 
-  std::vector<vk::DescriptorSetLayout> layouts(gSwapchainImageCount, layout);
+  std::vector<vk::DescriptorSetLayout> layouts(kMaxImagesInFlight, layout);
   descriptorSets_ = gDevice.allocateDescriptorSets({pool_, layouts});
 
-  for (size_t i = 0; i < gSwapchainImageCount; ++i) {
+  for (size_t i = 0; i < kMaxImagesInFlight; ++i) {
     vk::DeviceSize stride = uniformSize<MVP>();
     vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, stride * i, stride);
     vk::WriteDescriptorSet write(
@@ -315,21 +307,17 @@ DescriptorPool::~DescriptorPool() { gDevice.destroy(pool_); }
 CommandBuffers::CommandBuffers(const Pipeline &pipeline,
                                const DescriptorPool &descriptorPool,
                                const VertexBuffers &vertices) {
-  uint32_t nBuffers = (uint32_t)gFramebuffers.size();
-  commandBuffers_ = gDevice.allocateCommandBuffers(
-      {gCommandPool, vk::CommandBufferLevel::ePrimary, nBuffers});
+  commandPool_ =
+      gDevice.createCommandPool({/*flags=*/{}, gGraphicsQueueFamilyIndex});
 
-  for (uint32_t i = 0; i < nBuffers; ++i) {
+  commandBuffers_ = gDevice.allocateCommandBuffers(
+      {commandPool_, vk::CommandBufferLevel::ePrimary, kMaxImagesInFlight});
+
+  for (uint32_t i = 0; i < kMaxImagesInFlight; ++i) {
     vk::CommandBuffer buf = commandBuffers_[i];
     buf.begin(vk::CommandBufferBeginInfo());
     buf.setViewport(/*index=*/0, gViewport);
     buf.setScissor(/*index=*/0, gScissor);
-    vk::ClearValue clearColor(
-        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}));
-    buf.beginRenderPass(
-        {gRenderPass, gFramebuffers[i], /*renderArea=*/
-         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
-        vk::SubpassContents::eInline);
     buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
     buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
                            /*firstSet=*/0, descriptorPool.descriptorSets_[i],
@@ -341,7 +329,8 @@ CommandBuffers::CommandBuffers(const Pipeline &pipeline,
     buf.drawIndexed(vertices.count_, /*instanceCount=*/1, /*firstIndex=*/0,
                     /*vertexOffset=*/0,
                     /*firstInstance=*/0);
-    buf.endRenderPass();
     buf.end();
   }
 }
+
+CommandBuffers::~CommandBuffers() { gDevice.destroy(commandPool_); }
