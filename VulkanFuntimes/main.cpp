@@ -4,6 +4,7 @@
 #include "swapchain.hpp"
 #include "rendering.hpp"
 #include "util.hpp"
+#include "gltf.hpp"
 
 void mainApp() {
   Window window;
@@ -14,16 +15,18 @@ void mainApp() {
   RenderPass renderPass;
   FpsCount fpsCount;
   
-  Pipeline pipeline1;
+  Gltf gltffile("models/viking_room/scene.gltf");
   
+  Pipeline pipeline1;
+
   TransferCommandPool transferCommandPool;
   VertexBuffers vertexBuffers1;
   Textures textures1;
   UniformBuffers uniformBuffers;
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
-  
+
   gGraphicsQueue.waitIdle();
-  
+
   while (!glfwWindowShouldClose(gWindow)) {
     swapchain.resizeToWindow();
     Semaphores semaphores;

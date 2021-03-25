@@ -1,9 +1,180 @@
-syntax = "proto3";
+syntax = "proto2";
 
 option optimize_for = SPEED;
 
 package gltf;
 
-message File {
-  optional string foo = 1;
+message Asset {
+  optional string version = 1;
+  message Extras { optional string title = 1; }
+  optional Extras extras = 2;
+}
+
+message Scene {
+  optional string name = 1;
+  repeated uint64 nodes = 2;
+}
+
+message Node {
+  optional string name = 1;
+  repeated uint64 children = 2;
+  repeated float translation = 3;
+  // Quaternion
+  repeated float rotation = 4;
+  repeated float scale = 5;
+  repeated float matrix = 6;
+  optional uint64 mesh = 7;
+}
+
+message Buffer {
+  optional uint64 byteLength = 1;
+  optional string uri = 2;
+}
+
+message BufferView {
+  optional uint64 buffer = 1;
+  optional uint64 byteLength = 2;
+  optional uint64 byteOffset = 3;
+  optional uint64 byteStride = 4;
+  optional uint64 target = 5;  // FIXME
+}
+
+enum ComponentType {
+  UNKNOWN_COMPONENT = 0;
+  BYTE = 5120;
+  UNSIGNED_BYTE = 5121;
+  SHORT = 5122;
+  UNSIGNED_SHORT = 5123;
+  UNSIGNED_INT = 5125;
+  FLOAT = 5126;
+}
+enum Type {
+  option allow_alias = true;
+  UNKNOWN_TYPE = 0;
+  SCALAR = 1;
+  VEC2 = 2;
+  VEC3 = 3;
+  VEC4 = 4;
+  MAT2 = 4;
+  MAT3 = 9;
+  MAT4 = 16;
+}
+
+message Accessor {
+  optional uint64 bufferView = 1;
+  optional uint64 byteOffset = 2;
+  optional ComponentType componentType = 3;
+  optional Type type = 4;
+  optional uint64 count = 5;
+  repeated double min = 6;
+  repeated double max = 7;
+}
+
+message Primitive {
+  message Attributes {
+    optional uint64 UNKNOWN_ATTRIBUTE = 1;
+    optional uint64 POSITION = 2;
+    optional uint64 NORMAL = 3;
+    optional uint64 TANGENT = 4;
+    optional uint64 TEXCOORD_0 = 5;
+  }
+  optional Attributes attributes = 1;
+  optional uint64 indices = 2;
+  optional uint64 material = 3;
+  enum Mode {
+    UNKNOWN_MODE = 0;
+    TRIANGLES = 4;
+  }
+  optional Mode mode = 4 [default = TRIANGLES];
+}
+
+message Mesh {
+  optional string name = 1;
+  repeated Primitive primitives = 2;
+}
+
+message Image {
+  optional string name = 1;
+  optional string uri = 2;
+  optional uint64 bufferView = 3;
+  optional string mimeType = 4;
+}
+
+message Sampler {
+  enum Filter {
+    UNKNOWN_FILTER = 0;
+    NEAREST = 9728;
+    LINEAR = 9729;
+    NEAREST_MIPMAP_NEAREST = 9984;
+    LINEAR_MIPMAP_NEAREST = 9985;
+    NEAREST_MIPMAP_LINEAR = 9986;
+    LINEAR_MIPMAP_LINEAR = 9987;
+  }
+  optional Filter magFilter = 1 [default = NEAREST];
+  optional Filter minFilter = 2 [default = NEAREST];
+  enum Wrap {
+    UNKNOWN_WRAP = 0;
+    CLAMP_TO_EDGE = 33071;
+    MIRRORED_REPEAT = 33648;
+    REPEAT = 10497;
+  }
+  optional Wrap wrapS = 3 [default = REPEAT];
+  optional Wrap wrapT = 4 [default = REPEAT];
+}
+
+message Texture {
+  optional uint64 sampler = 1;
+  optional uint64 source = 2;
+}
+
+message TextureInfo {
+  optional uint64 index = 1;
+  optional uint64 texCoord = 2;
+}
+
+message NormalTextureInfo {
+  optional uint64 index = 1;
+  optional uint64 texCoord = 2;
+  optional float scale = 3 [default = 1];
+}
+
+message OcclusionTextureInfo {
+  optional uint64 index = 1;
+  optional uint64 texCoord = 2;
+  optional float strength = 3 [default = 1];
+}
+
+message PbrMetallicRoughness {
+  optional TextureInfo baseColorTexture = 1;
+  optional TextureInfo metallicRoughnessTexture = 2;
+  repeated float baseColorFactor = 3;
+  optional float metallicFactor = 4 [default = 1];
+  optional float roughnessFactor = 5 [default = 1];
+}
+
+message Material {
+  optional string name = 1;
+  optional PbrMetallicRoughness pbrMetallicRoughness = 2;
+  optional NormalTextureInfo normalTexture = 3;
+  optional OcclusionTextureInfo occlusionTexture = 4;
+  optional TextureInfo emissiveTexture = 5;
+  repeated float emissiveFactor = 6;
+  optional bool doubleSided = 7;
+}
+
+message Gltf {
+  optional Asset asset = 1;
+  optional uint64 scene = 2;
+  repeated Scene scenes = 3;
+  repeated Node nodes = 4;
+  
+  repeated Mesh meshes = 5;
+  repeated Accessor accessors = 6;
+  repeated BufferView bufferViews = 7;
+  repeated Buffer buffers = 8;
+  
+  repeated Material materials = 9;
+  repeated Texture textures = 10;
+  repeated Sampler samplers = 11;
+  repeated Image images = 12;
 }
