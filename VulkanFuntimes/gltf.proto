@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option optimize_for = SPEED;
+
+package gltf;
+
+message File {
+  optional string foo = 1;
+}
