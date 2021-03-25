@@ -82,14 +82,22 @@ RenderPass::RenderPass() {
       /*inputAttachments=*/{}, colorRef, /*resolveAttachments=*/{},
       &depthStencilRef);
   // Don't write to the image until the presenter is done with it
-  vk::SubpassDependency colorWriteDependency(
-      /*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
-      /*src=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
-      /*dst=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
-      /*src=*/vk::AccessFlags(),
-      /*dst=*/vk::AccessFlagBits::eColorAttachmentWrite);
+  std::initializer_list<vk::SubpassDependency> dependencies = {
+      {/*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
+       /*src=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
+       /*dst=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
+       /*src=*/vk::AccessFlags(),
+       /*dst=*/vk::AccessFlagBits::eColorAttachmentWrite},
+      // Don't touch the depth buffer until the previous frame is done with it
+      {/*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
+       vk::PipelineStageFlagBits::eLateFragmentTests,
+       vk::PipelineStageFlagBits::eEarlyFragmentTests,
+       vk::AccessFlagBits::eDepthStencilAttachmentRead |
+           vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+       vk::AccessFlagBits::eDepthStencilAttachmentRead |
+           vk::AccessFlagBits::eDepthStencilAttachmentWrite}};
   gRenderPass = gDevice.createRenderPass(
-      {/*flags=*/{}, attachments, subpass, colorWriteDependency});
+      {/*flags=*/{}, attachments, subpass, dependencies});
 }
 RenderPass::~RenderPass() { gDevice.destroy(gRenderPass); }
 

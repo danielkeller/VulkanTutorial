@@ -131,6 +131,7 @@ DepthStencil::DepthStencil() {
 DepthStencil::~DepthStencil() {
   gDevice.destroy(gDepthStencilImageView);
   gDevice.destroy(image_);
+  gDevice.free(memory_);
 }
 
 std::vector<vk::Fence> gFrameFences;
