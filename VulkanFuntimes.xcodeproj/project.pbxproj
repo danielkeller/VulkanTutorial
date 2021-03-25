@@ -54,7 +54,7 @@
 				$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Resources/$INPUT_FILE_NAME,
 			);
 			runOncePerArchitecture = 0;
-			script = "glslc \"$INPUT_FILE_DIR/$INPUT_FILE_NAME\" -o \"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Resources/$INPUT_FILE_NAME\"\n\n";
+			script = "\"$PROJECT_DIR/Bin/glslc\" \"$INPUT_FILE_DIR/$INPUT_FILE_NAME\" -o \"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Resources/$INPUT_FILE_NAME\"\n\n";
 		};
 		37C4644C26013E630018E3F8 /* PBXBuildRule */ = {
 			isa = PBXBuildRule;
