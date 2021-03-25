@@ -58,20 +58,29 @@ vk::ShaderModule readShader(const std::string &filename) {
 vk::RenderPass gRenderPass;
 
 RenderPass::RenderPass() {
-  vk::AttachmentDescription colorAttachment(
-      /*flags=*/{}, kPresentFormat, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-      /*stencil*/ vk::AttachmentLoadOp::eDontCare,
-      vk::AttachmentStoreOp::eDontCare,
-      /*initialLayout=*/vk::ImageLayout::eUndefined,
-      /*finalLayout=*/vk::ImageLayout::ePresentSrcKHR);
+  std::initializer_list<vk::AttachmentDescription> attachments = {
+      {/*flags=*/{}, kPresentFormat, vk::SampleCountFlagBits::e1,
+       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+       /*stencil*/ vk::AttachmentLoadOp::eDontCare,
+       vk::AttachmentStoreOp::eDontCare,
+       /*initialLayout=*/vk::ImageLayout::eUndefined,
+       /*finalLayout=*/vk::ImageLayout::ePresentSrcKHR},
+      {/*flags=*/{}, kDepthStencilFormat, vk::SampleCountFlagBits::e1,
+       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+       /*stencil*/ vk::AttachmentLoadOp::eClear,
+       vk::AttachmentStoreOp::eDontCare,
+       /*initialLayout=*/vk::ImageLayout::eUndefined,
+       /*finalLayout=*/vk::ImageLayout::eDepthStencilAttachmentOptimal}};
+
   vk::AttachmentReference colorRef(
       /*attachment=*/0, vk::ImageLayout::eColorAttachmentOptimal);
+  vk::AttachmentReference depthStencilRef(
+      /*attachment=*/1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
   // Attachment ref index corresponds to layout number in shader
   vk::SubpassDescription subpass(
       /*flags=*/{}, vk::PipelineBindPoint::eGraphics,
-      /*inputAttachments=*/{},
-      /*colorAttachments=*/colorRef);
+      /*inputAttachments=*/{}, colorRef, /*resolveAttachments=*/{},
+      &depthStencilRef);
   // Don't write to the image until the presenter is done with it
   vk::SubpassDependency colorWriteDependency(
       /*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
@@ -80,7 +89,7 @@ RenderPass::RenderPass() {
       /*src=*/vk::AccessFlags(),
       /*dst=*/vk::AccessFlagBits::eColorAttachmentWrite);
   gRenderPass = gDevice.createRenderPass(
-      {/*flags=*/{}, colorAttachment, subpass, colorWriteDependency});
+      {/*flags=*/{}, attachments, subpass, colorWriteDependency});
 }
 RenderPass::~RenderPass() { gDevice.destroy(gRenderPass); }
 
@@ -92,7 +101,7 @@ struct Description {
 };
 
 struct Vertex {
-  glm::vec2 pos;
+  glm::vec3 pos;
   glm::vec2 uv;
 };
 template <>
@@ -101,30 +110,21 @@ const vk::VertexInputBindingDescription Description<Vertex>::binding{
 template <>
 const std::initializer_list<vk::VertexInputAttributeDescription>
     Description<Vertex>::attribute{
-        {/*location=*/0, /*binding=*/0, vk::Format::eR32G32Sfloat,
+        {/*location=*/0, /*binding=*/0, vk::Format::eR32G32B32Sfloat,
          offsetof(Vertex, pos)},
         {/*location=*/1, /*binding=*/0, vk::Format::eR32G32Sfloat,
          offsetof(Vertex, uv)}};
 
-const std::vector<Vertex> vertices = {{{0.5f, -0.5f}, {1.0f, 0.0f}},
-                                      {{0.5f, 0.5f}, {1.0f, 1.0f}},
-                                      {{-0.5f, 0.5f}, {0.0f, 1.0f}},
-                                      {{-0.5f, -0.5f}, {0.0f, 0.0f}}};
+const std::vector<Vertex> vertices = {{{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
+                                      {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},
+                                      {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
+                                      {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
+                                      {{0.5f, -0.5f, -0.5f}, {1.0f, 0.5f}},
+                                      {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f}},
+                                      {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f}},
+                                      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}}};
 
-const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
-
-uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
-                      vk::MemoryPropertyFlags memFlagRequirements) {
-  vk::PhysicalDeviceMemoryProperties memProperties =
-      gPhysicalDevice.getMemoryProperties();
-
-  for (uint32_t i = 0; i < memProperties.memoryTypes.size(); ++i) {
-    if (memoryRequirements.memoryTypeBits & (1 << i) &&
-        memProperties.memoryTypes[i].propertyFlags & memFlagRequirements)
-      return i;
-  }
-  throw std::runtime_error("No memory type found for buffer");
-}
+const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
 
 MappedStagingBuffer StagingBuffer::map(vk::DeviceSize size) {
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
@@ -275,8 +275,10 @@ Pipeline::Pipeline() {
       /*flags=*/{}, /*depthClampEnable=*/false,
       /*rasterizerDiscardEnable=*/false, vk::PolygonMode::eFill,
       vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise,
-      /*depthBiasEnable=*/false, {}, {}, {},
-      /*lineWidth=*/1);
+      /*depthBiasEnable=*/false, {}, {}, {}, /*lineWidth=*/1);
+  vk::PipelineDepthStencilStateCreateInfo depthStencil(
+      /*flags=*/{}, /*depthTestEnable=*/true, /*depthWriteEnable=*/true,
+      vk::CompareOp::eLess);
   vk::PipelineMultisampleStateCreateInfo multisample;
   vk::PipelineColorBlendAttachmentState colorBlend1;
   colorBlend1.colorWriteMask = ~vk::ColorComponentFlags();  // All
@@ -316,8 +318,8 @@ Pipeline::Pipeline() {
           /*pipelineCache=*/nullptr,
           {{/*flags=*/{}, stages, &vertexInput, &inputAssembly,
             /*tesselation=*/{}, &viewportState, &rasterization, &multisample,
-            /*depthStencil=*/{}, &colorBlend, &dynamicState, layout_,
-            gRenderPass, /*subpass=*/0, /*basePipeline=*/{}}});
+            &depthStencil, &colorBlend, &dynamicState, layout_, gRenderPass,
+            /*subpass=*/0, /*basePipeline=*/{}}});
 
   gDevice.destroy(vert);
   gDevice.destroy(frag);
@@ -433,11 +435,12 @@ CommandBuffers::CommandBuffers(const Pipeline &pipeline,
     buf.begin(vk::CommandBufferBeginInfo());
     buf.setViewport(/*index=*/0, gViewport);
     buf.setScissor(/*index=*/0, gScissor);
-    vk::ClearValue clearColor(
-        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}));
+    std::initializer_list<vk::ClearValue> clearValues = {
+        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}),
+        vk::ClearDepthStencilValue(1.f, 0)};
     buf.beginRenderPass(
         {gRenderPass, gFramebuffers[i], /*renderArea=*/
-         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearColor},
+         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearValues},
         vk::SubpassContents::eInline);
     buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
     buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,

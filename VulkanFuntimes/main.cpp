@@ -27,6 +27,7 @@ void mainApp() {
   while (!glfwWindowShouldClose(gWindow)) {
     swapchain.resizeToWindow();
     Semaphores semaphores;
+    DepthStencil depthStencil;
     Framebuffers framebuffers;
     CommandPool commandPool;
     CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers1);

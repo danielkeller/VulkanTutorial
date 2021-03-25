@@ -34,6 +34,9 @@ struct Device {
   ~Device();
 };
 
+uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
+                      vk::MemoryPropertyFlags memFlagRequirements);
+
 struct FpsCount {
   uint64_t frame_ = 0;
   static constexpr uint64_t kInterval = 200;

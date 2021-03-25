@@ -4,6 +4,7 @@
 #include "vulkan/vulkan.hpp"
 
 constexpr vk::Format kPresentFormat = vk::Format::eB8G8R8A8Srgb;
+constexpr vk::Format kDepthStencilFormat = vk::Format::eD32SfloatS8Uint;
 constexpr uint32_t kMaxImagesInFlight = 2;
 
 extern vk::SwapchainKHR gSwapchain;
@@ -23,6 +24,13 @@ struct Swapchain {
   void destroy();
   vk::Semaphore getFirstImage();
   vk::Semaphore getNextImage(vk::Semaphore renderFinishedSemaphore);
+};
+
+struct DepthStencil {
+  vk::DeviceMemory memory_;
+  vk::Image image_;
+  DepthStencil();
+  ~DepthStencil();
 };
 
 extern std::vector<vk::Fence> gFrameFences;

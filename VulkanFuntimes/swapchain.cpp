@@ -23,13 +23,13 @@ vk::Extent2D windowExtent() {
 void Swapchain::resizeToWindow() {
   if (gSwapchainExtent == windowExtent()) return;
   destroy();
-  
+
   gSwapchainExtent = windowExtent();
   gViewport =
       vk::Viewport(0, 0, gSwapchainExtent.width, gSwapchainExtent.height,
                    /*minZ=*/0., /*maxZ=*/1.);
   gScissor = vk::Rect2D(vk::Offset2D(0, 0), gSwapchainExtent);
-  
+
   vk::SurfaceCapabilitiesKHR caps =
       gPhysicalDevice.getSurfaceCapabilitiesKHR(gSurface);
   // The min image count is the minimum number of images in the swapchain for
@@ -102,6 +102,37 @@ void Swapchain::destroy() {
   gSwapchain = nullptr;
 }
 
+vk::ImageView gDepthStencilImageView;
+
+DepthStencil::DepthStencil() {
+  vk::Extent3D extent(gSwapchainExtent, 1);
+  image_ = gDevice.createImage(
+      {/*flags=*/{}, vk::ImageType::e2D, kDepthStencilFormat, extent,
+       /*mipLevels=*/1, /*arrayLayers=*/1, vk::SampleCountFlagBits::e1,
+       vk::ImageTiling::eOptimal,
+       vk::ImageUsageFlagBits::eDepthStencilAttachment,
+       vk::SharingMode::eExclusive, /*queueFamilyIndices=*/{}});
+
+  uint32_t memoryType = getMemoryFor(gDevice.getImageMemoryRequirements(image_),
+                                     vk::MemoryPropertyFlagBits::eDeviceLocal);
+  memory_ =
+      gDevice.allocateMemory({extent.width * extent.height * 8, memoryType});
+  gDevice.bindImageMemory(image_, memory_, /*offset=*/0);
+
+  vk::ImageSubresourceRange wholeImage(
+      vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+      /*baseMip=*/0,
+      /*levelCount=*/1, /*baseLayer=*/0,
+      /*layerCount=*/1);
+  gDepthStencilImageView = gDevice.createImageView(
+      {/*flags=*/{}, image_, vk::ImageViewType::e2D, kDepthStencilFormat,
+       /*componentMapping=*/{}, wholeImage});
+}
+DepthStencil::~DepthStencil() {
+  gDevice.destroy(gDepthStencilImageView);
+  gDevice.destroy(image_);
+}
+
 std::vector<vk::Fence> gFrameFences;
 std::vector<vk::Fence> gInFlightFences;
 std::vector<vk::Semaphore> gImageAvailableSemaphores;
@@ -129,8 +160,9 @@ std::vector<vk::Framebuffer> gFramebuffers;
 
 Framebuffers::Framebuffers() {
   for (vk::ImageView imageView : gSwapchainImageViews) {
+    auto attachments = {imageView, gDepthStencilImageView};
     gFramebuffers.push_back(gDevice.createFramebuffer(
-        {/*flags=*/{}, gRenderPass, imageView, gSwapchainExtent.width,
+        {/*flags=*/{}, gRenderPass, attachments, gSwapchainExtent.width,
          gSwapchainExtent.height, /*layers=*/1}));
   }
 }

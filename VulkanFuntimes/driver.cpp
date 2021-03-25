@@ -117,6 +117,19 @@ Device::~Device() {
   gGraphicsQueue = nullptr;
 }
 
+uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
+                      vk::MemoryPropertyFlags memFlagRequirements) {
+  vk::PhysicalDeviceMemoryProperties memProperties =
+      gPhysicalDevice.getMemoryProperties();
+
+  for (uint32_t i = 0; i < memProperties.memoryTypes.size(); ++i) {
+    if (memoryRequirements.memoryTypeBits & (1 << i) &&
+        memProperties.memoryTypes[i].propertyFlags & memFlagRequirements)
+      return i;
+  }
+  throw std::runtime_error("No memory type found for buffer");
+}
+
 void FpsCount::count() {
   if (!frame_ || frame_ % kInterval != 0) return;
   auto end = std::chrono::high_resolution_clock::now();
