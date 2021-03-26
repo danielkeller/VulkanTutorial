@@ -15,9 +15,9 @@ void mainApp() {
   Swapchain swapchain;
   RenderPass renderPass;
   FpsCount fpsCount;
-  
+
   Gltf gltffile("models/viking_room/scene.gltf");
-  
+
   Pipeline pipeline1(gltffile);
 
   TransferCommandPool transferCommandPool;
@@ -34,7 +34,6 @@ void mainApp() {
     DepthStencil depthStencil;
     Framebuffers framebuffers;
     CommandPool commandPool;
-    CommandBuffers commandBuffers1(pipeline1, descriptorPool1, vertexBuffers1);
     gWindowSizeChanged = false;
     std::cerr << "resize " << gSwapchainExtent.width << "x"
               << gSwapchainExtent.height << "\n";
@@ -57,12 +56,12 @@ void mainApp() {
 
       vk::PipelineStageFlags waitDestStage(
           vk::PipelineStageFlagBits::eColorAttachmentOutput);
-      vk::CommandBuffer commandBuffer(
-          commandBuffers1.commandBuffers_[gSwapchainCurrentImage]);
+
+      CommandBuffer commandBuffer1(pipeline1, descriptorPool1, vertexBuffers1);
       vk::Semaphore renderFinishedSemaphore =
           gRenderFinishedSemaphores[gSwapchainCurrentImage];
       vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,
-                            commandBuffer,
+                            commandBuffer1.buf_,
                             /*signal=*/renderFinishedSemaphore);
 
       gInFlightFences[gSwapchainCurrentImage] =
@@ -73,7 +72,6 @@ void mainApp() {
 
       glfwPollEvents();
       fpsCount.count();
-      uniformBuffers.update();
     }
     gGraphicsQueue.waitIdle();
   }

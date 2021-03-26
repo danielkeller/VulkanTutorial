@@ -35,14 +35,6 @@ TransferCommandBuffer::~TransferCommandBuffer() {
   gGraphicsQueue.submit(submit);
 }
 
-vk::CommandPool gCommandPool;
-
-CommandPool::CommandPool() {
-  gCommandPool =
-      gDevice.createCommandPool({/*flags=*/{}, gGraphicsQueueFamilyIndex});
-}
-CommandPool::~CommandPool() { gDevice.destroy(gCommandPool); }
-
 MappedStagingBuffer StagingBuffer::map(vk::DeviceSize size) {
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
                                   vk::BufferUsageFlagBits::eTransferSrc,
@@ -98,7 +90,7 @@ Textures::Textures(const Gltf &model) {
   Pixels pixels = model.getDiffuseImage();
   vk::DeviceSize size = pixels.size();
   vk::Extent3D extent = pixels.extent();
-  
+
   MappedStagingBuffer mapped = staging_buffer_.map(size);
   std::copy_n(pixels.data_, size, mapped.pointer_);
 
@@ -216,9 +208,11 @@ Pipeline::Pipeline(const Gltf &model) {
        /*immutableSamplers=*/sampler_}};
   descriptorSetLayout_ =
       gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
+  vk::PushConstantRange pushConstants(vk::ShaderStageFlagBits::eVertex,
+                                      /*offset=*/0, sizeof(glm::mat4));
 
-  layout_ = gDevice.createPipelineLayout({/*flags=*/{}, descriptorSetLayout_,
-                                          /*pushConstantRanges=*/{}});
+  layout_ = gDevice.createPipelineLayout(
+      {/*flags=*/{}, descriptorSetLayout_, pushConstants});
 
   vk::ShaderModule vert = readShader("triangle.vert");
   vk::ShaderModule frag = readShader("test.frag");
@@ -259,13 +253,13 @@ vk::DeviceSize uniformSize() {
   return ((sizeof(T) + align - 1) / align) * align;
 }
 
-struct MVP {
-  glm::mat4 model, view, projection;
+struct Model {
+  glm::mat4 model;
 };
 vk::Buffer gUniformBuffer;
 
 UniformBuffers::UniformBuffers() {
-  vk::DeviceSize size = uniformSize<MVP>() * gSwapchainImageCount;
+  vk::DeviceSize size = uniformSize<Model>();
   gUniformBuffer = gDevice.createBuffer(
       {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
        vk::SharingMode::eExclusive});
@@ -276,26 +270,10 @@ UniformBuffers::UniformBuffers() {
   memory_ = gDevice.allocateMemory({size, stagingMemoryType});
   gDevice.bindBufferMemory(gUniformBuffer, memory_, /*offset=*/0);
   mapping_ = (char *)gDevice.mapMemory(memory_, /*offset=*/0, size);
-}
 
-void UniformBuffers::update() {
-  static auto start = std::chrono::high_resolution_clock::now();
-  auto now = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float> spinTime =
-      (now - start) % std::chrono::seconds(4);
-  MVP mvp;
-  mvp.model = glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-                          glm::vec3(0.f, 1.f, 0.f));
-  mvp.view = glm::lookAt(/*eye=*/glm::vec3(30.f, 30.f, 30.f),
-                         /*center=*/glm::vec3(0.f, 5.f, 0.f),
-                         /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));
-  mvp.projection =
-      glm::perspective(/*fovy=*/glm::radians(45.f),
-                       gSwapchainExtent.width / (float)gSwapchainExtent.height,
-                       /*znear=*/0.1f, /*zfar=*/100.f);
-
-  size_t offset = gSwapchainCurrentImage * uniformSize<MVP>();
-  std::copy_n((char *)&mvp, uniformSize<MVP>(), mapping_ + offset);
+  Model model;
+  model.model = glm::mat4(1.);
+  std::copy_n((char *)&model, uniformSize<Model>(), mapping_);
   // eHostCoherent handles flushes and the later queue submit creates a memory
   // barrier
 }
@@ -309,69 +287,90 @@ UniformBuffers::~UniformBuffers() {
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                const Textures &textures) {
   std::initializer_list<vk::DescriptorPoolSize> sizes = {
-      {vk::DescriptorType::eUniformBuffer,
-       /*count=*/gSwapchainImageCount},
-      {vk::DescriptorType::eCombinedImageSampler,
-       /*count=*/gSwapchainImageCount}};
-  pool_ = gDevice.createDescriptorPool(
-      {/*flags=*/{}, /*maxSets=*/gSwapchainImageCount, sizes});
+      {vk::DescriptorType::eUniformBuffer, /*count=*/1},
+      {vk::DescriptorType::eCombinedImageSampler, /*count=*/1}};
+  pool_ = gDevice.createDescriptorPool({/*flags=*/{}, /*maxSets=*/1, sizes});
 
-  std::vector<vk::DescriptorSetLayout> layouts(gSwapchainImageCount, layout);
-  descriptorSets_ = gDevice.allocateDescriptorSets({pool_, layouts});
+  descriptorSet_ = gDevice.allocateDescriptorSets({pool_, layout})[0];
 
-  for (size_t i = 0; i < gSwapchainImageCount; ++i) {
-    vk::DeviceSize stride = uniformSize<MVP>();
-    vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, stride * i, stride);
-    vk::WriteDescriptorSet writeBuffer(
-        descriptorSets_[i], /*binding=*/0, /*arrayElement=*/0,
-        vk::DescriptorType::eUniformBuffer, {}, bufferInfo,
-        /*texelBufferView=*/{});
+  vk::DeviceSize size = uniformSize<Model>();
+  vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, /*offset=*/0, size);
+  vk::WriteDescriptorSet writeBuffer(descriptorSet_, /*binding=*/0,
+                                     /*arrayElement=*/0,
+                                     vk::DescriptorType::eUniformBuffer, {},
+                                     bufferInfo, /*texelBufferView=*/{});
 
-    vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, textures.imageView_,
-                                      vk::ImageLayout::eShaderReadOnlyOptimal);
-    vk::WriteDescriptorSet writeImage(
-        descriptorSets_[i], /*binding=*/1, /*arrayElement=*/0,
-        vk::DescriptorType::eCombinedImageSampler, imageInfo, {},
-        /*texelBufferView=*/{});
-    gDevice.updateDescriptorSets({writeBuffer, writeImage}, {});
-  }
+  vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, textures.imageView_,
+                                    vk::ImageLayout::eShaderReadOnlyOptimal);
+  vk::WriteDescriptorSet writeImage(
+      descriptorSet_, /*binding=*/1, /*arrayElement=*/0,
+      vk::DescriptorType::eCombinedImageSampler, imageInfo, {},
+      /*texelBufferView=*/{});
+  gDevice.updateDescriptorSets({writeBuffer, writeImage}, {});
 }
 
 DescriptorPool::~DescriptorPool() { gDevice.destroy(pool_); }
 
-CommandBuffers::CommandBuffers(const Pipeline &pipeline,
-                               const DescriptorPool &descriptorPool,
-                               const VertexBuffers &vertices) {
-  uint32_t nBuffers = (uint32_t)gFramebuffers.size();
-  commandBuffers_ = gDevice.allocateCommandBuffers(
-      {gCommandPool, vk::CommandBufferLevel::ePrimary, nBuffers});
+std::vector<vk::CommandPool> gCommandPools;
+CommandPool::CommandPool() {
+  for (int i = 0; i < gSwapchainImageCount; ++i)
+    gCommandPools.push_back(
+        gDevice.createCommandPool({vk::CommandPoolCreateFlagBits::eTransient,
+                                   gGraphicsQueueFamilyIndex}));
+}
+CommandPool::~CommandPool() {
+  for (vk::CommandPool pool : gCommandPools) gDevice.destroy(pool);
+}
 
-  for (uint32_t i = 0; i < nBuffers; ++i) {
-    vk::CommandBuffer buf = commandBuffers_[i];
-    buf.begin(vk::CommandBufferBeginInfo());
-    buf.setViewport(/*index=*/0, gViewport);
-    buf.setScissor(/*index=*/0, gScissor);
-    std::initializer_list<vk::ClearValue> clearValues = {
-        vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}),
-        vk::ClearDepthStencilValue(1.f, 0)};
-    buf.beginRenderPass(
-        {gRenderPass, gFramebuffers[i], /*renderArea=*/
-         vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearValues},
-        vk::SubpassContents::eInline);
-    buf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
-    buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
-                           /*firstSet=*/0, descriptorPool.descriptorSets_[i],
-                           /*dynamicOffsets=*/{});
-    for (uint32_t binding = 0; binding < vertices.bind_offsets_.size();
-         ++binding)
-      buf.bindVertexBuffers(binding, vertices.buffer_,
-                            vertices.bind_offsets_[binding]);
-    buf.bindIndexBuffer(vertices.buffer_, vertices.index_offset_,
-                        vertices.index_type_);
-    buf.drawIndexed(vertices.count_, /*instanceCount=*/1, /*firstIndex=*/0,
-                    /*vertexOffset=*/0,
-                    /*firstInstance=*/0);
-    buf.endRenderPass();
-    buf.end();
-  }
+glm::mat4 getCamera() {
+  static auto start = std::chrono::high_resolution_clock::now();
+  auto now = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float> spinTime =
+      (now - start) % std::chrono::seconds(4);
+  return glm::perspective(
+             /*fovy=*/glm::radians(45.f),
+             gSwapchainExtent.width / (float)gSwapchainExtent.height,
+             /*znear=*/0.1f, /*zfar=*/100.f) *
+         glm::lookAt(/*eye=*/glm::vec3(30.f, 30.f, 30.f),
+                     /*center=*/glm::vec3(0.f, 5.f, 0.f),
+                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f)) *
+         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+                     glm::vec3(0.f, 1.f, 0.f));
+}
+
+CommandBuffer::CommandBuffer(const Pipeline &pipeline,
+                             const DescriptorPool &descriptorPool,
+                             const VertexBuffers &vertices) {
+  vk::CommandPool pool = gCommandPools[gSwapchainCurrentImage];
+  if (gFrame % 100 == 0) gDevice.resetCommandPool(pool);
+  buf_ = gDevice.allocateCommandBuffers(
+      {pool, vk::CommandBufferLevel::ePrimary, 1})[0];
+
+  buf_.begin(vk::CommandBufferBeginInfo());
+  buf_.setViewport(/*index=*/0, gViewport);
+  buf_.setScissor(/*index=*/0, gScissor);
+  std::initializer_list<vk::ClearValue> clearValues = {
+      vk::ClearColorValue(std::array<float, 4>{0, 0, 0, 1}),
+      vk::ClearDepthStencilValue(1.f, 0)};
+  buf_.beginRenderPass(
+      {gRenderPass, gFramebuffers[gSwapchainCurrentImage], /*renderArea=*/
+       vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearValues},
+      vk::SubpassContents::eInline);
+  buf_.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
+  buf_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
+                          /*firstSet=*/0, descriptorPool.descriptorSet_,
+                          /*dynamicOffsets=*/{});
+  glm::mat4 camera = getCamera();
+  buf_.pushConstants(pipeline.layout_, vk::ShaderStageFlagBits::eVertex,
+                     /*offset=*/0, sizeof camera, (void *)&camera);
+  for (uint32_t binding = 0; binding < vertices.bind_offsets_.size(); ++binding)
+    buf_.bindVertexBuffers(binding, vertices.buffer_,
+                           vertices.bind_offsets_[binding]);
+  buf_.bindIndexBuffer(vertices.buffer_, vertices.index_offset_,
+                       vertices.index_type_);
+  buf_.drawIndexed(vertices.count_, /*instanceCount=*/1, /*firstIndex=*/0,
+                   /*vertexOffset=*/0,
+                   /*firstInstance=*/0);
+  buf_.endRenderPass();
+  buf_.end();
 }

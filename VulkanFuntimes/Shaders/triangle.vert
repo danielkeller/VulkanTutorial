@@ -1,7 +1,7 @@
 #version 450
 
-layout(binding = 0) uniform MVP { mat4 model, view, projection; }
-mvp;
+layout(push_constant) uniform Camera { mat4 camera; } camera;
+layout(binding = 0) uniform Model { mat4 model; } model;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inTexCoord;
@@ -9,6 +9,6 @@ layout(location = 1) in vec2 inTexCoord;
 layout(location = 0) out vec2 fragTexCoord;
 void main() {
   gl_Position =
-      mvp.projection * mvp.view * mvp.model * vec4(inPosition, 1.0);
+      camera.camera * model.model * vec4(inPosition, 1.0);
   fragTexCoord = inTexCoord;
 }

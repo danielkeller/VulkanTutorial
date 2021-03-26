@@ -130,13 +130,14 @@ uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
   throw std::runtime_error("No memory type found for buffer");
 }
 
+uint64_t gFrame = 0;
 void FpsCount::count() {
-  if (!frame_ || frame_ % kInterval != 0) return;
+  if (!gFrame || gFrame % kInterval != 0) return;
   auto end = std::chrono::high_resolution_clock::now();
   auto timeus =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start_);
   auto fps = (kInterval * 1000000) / timeus.count();
   std::cerr << fps << " FPS\n";
   start_ = end;
-  ++frame_;
+  ++gFrame;
 }
