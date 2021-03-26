@@ -7,6 +7,7 @@
 #include "gltf.hpp"
 
 void mainApp() {
+  std::ios_base::sync_with_stdio(false);
   Window window;
   Instance instance;
   Surface surface;
@@ -17,13 +18,13 @@ void mainApp() {
   
   Gltf gltffile("models/viking_room/scene.gltf");
   
-  Pipeline pipeline1;
+  Pipeline pipeline1(gltffile);
 
   TransferCommandPool transferCommandPool;
-  VertexBuffers vertexBuffers1;
-  Textures textures1;
+  VertexBuffers vertexBuffers1(gltffile);
+  Textures textures1(gltffile);
   UniformBuffers uniformBuffers;
-  DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_);
+  DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1);
 
   gGraphicsQueue.waitIdle();
 

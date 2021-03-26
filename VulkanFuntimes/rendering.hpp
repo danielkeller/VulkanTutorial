@@ -2,6 +2,7 @@
 #define rendering_hpp
 
 #include "vulkan/vulkan.hpp"
+#include "gltf.hpp"
 
 extern vk::CommandPool gTransferCommandPool;
 struct TransferCommandPool {
@@ -20,18 +21,12 @@ struct CommandPool {
   ~CommandPool();
 };
 
-extern vk::RenderPass gRenderPass;
-struct RenderPass {
-  RenderPass();
-  ~RenderPass();
-};
-
 struct Pipeline {
   vk::DescriptorSetLayout descriptorSetLayout_;
   vk::PipelineLayout layout_;
   vk::Sampler sampler_;
   vk::Pipeline pipeline_;
-  Pipeline();
+  Pipeline(const Gltf& model);
   ~Pipeline();
 };
 
@@ -52,18 +47,20 @@ struct VertexBuffers {
   vk::Buffer buffer_;
   vk::DeviceMemory memory_;
   StagingBuffer staging_buffer_;
-  vk::DeviceSize vertex_offset_;
   vk::DeviceSize index_offset_;
   uint32_t count_;
-  VertexBuffers();
+  vk::IndexType index_type_;
+  std::vector<vk::DeviceSize> bind_offsets_;
+  VertexBuffers(const Gltf& model);
   ~VertexBuffers();
 };
 
 struct Textures {
+  vk::ImageView imageView_;
   vk::Image image_;
   vk::DeviceMemory memory_;
   StagingBuffer staging_buffer_;
-  Textures();
+  Textures(const Gltf& model);
   ~Textures();
 };
 
@@ -78,7 +75,7 @@ struct UniformBuffers {
 struct DescriptorPool {
   vk::DescriptorPool pool_;
   std::vector<vk::DescriptorSet> descriptorSets_;
-  DescriptorPool(vk::DescriptorSetLayout layout);
+  DescriptorPool(vk::DescriptorSetLayout layout, const Textures& textures);
   ~DescriptorPool();
 };
 

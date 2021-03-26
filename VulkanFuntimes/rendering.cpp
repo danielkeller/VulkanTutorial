@@ -7,7 +7,6 @@
 #include "glm/vec3.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
-#include "stb_image.h"
 
 #include "util.hpp"
 #include "driver.hpp"
@@ -44,96 +43,6 @@ CommandPool::CommandPool() {
 }
 CommandPool::~CommandPool() { gDevice.destroy(gCommandPool); }
 
-vk::ShaderModule readShader(const std::string &filename) {
-  std::ifstream file(filename, std::ios::ate | std::ios::binary);
-  if (!file.is_open())
-    throw std::runtime_error("failed to open file \"" + filename + "\"");
-  size_t fileSize = (size_t)file.tellg();
-  std::vector<uint32_t> buffer(fileSize / 4);
-  file.seekg(0);
-  file.read(reinterpret_cast<char *>(buffer.data()), fileSize);
-  return gDevice.createShaderModule({vk::ShaderModuleCreateFlags(), buffer});
-}
-
-vk::RenderPass gRenderPass;
-
-RenderPass::RenderPass() {
-  std::initializer_list<vk::AttachmentDescription> attachments = {
-      {/*flags=*/{}, kPresentFormat, vk::SampleCountFlagBits::e1,
-       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-       /*stencil*/ vk::AttachmentLoadOp::eDontCare,
-       vk::AttachmentStoreOp::eDontCare,
-       /*initialLayout=*/vk::ImageLayout::eUndefined,
-       /*finalLayout=*/vk::ImageLayout::ePresentSrcKHR},
-      {/*flags=*/{}, kDepthStencilFormat, vk::SampleCountFlagBits::e1,
-       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
-       /*stencil*/ vk::AttachmentLoadOp::eClear,
-       vk::AttachmentStoreOp::eDontCare,
-       /*initialLayout=*/vk::ImageLayout::eUndefined,
-       /*finalLayout=*/vk::ImageLayout::eDepthStencilAttachmentOptimal}};
-
-  vk::AttachmentReference colorRef(
-      /*attachment=*/0, vk::ImageLayout::eColorAttachmentOptimal);
-  vk::AttachmentReference depthStencilRef(
-      /*attachment=*/1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
-  // Attachment ref index corresponds to layout number in shader
-  vk::SubpassDescription subpass(
-      /*flags=*/{}, vk::PipelineBindPoint::eGraphics,
-      /*inputAttachments=*/{}, colorRef, /*resolveAttachments=*/{},
-      &depthStencilRef);
-  // Don't write to the image until the presenter is done with it
-  std::initializer_list<vk::SubpassDependency> dependencies = {
-      {/*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
-       /*src=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
-       /*dst=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
-       /*src=*/vk::AccessFlags(),
-       /*dst=*/vk::AccessFlagBits::eColorAttachmentWrite},
-      // Don't touch the depth buffer until the previous frame is done with it
-      {/*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
-       vk::PipelineStageFlagBits::eLateFragmentTests,
-       vk::PipelineStageFlagBits::eEarlyFragmentTests,
-       vk::AccessFlagBits::eDepthStencilAttachmentRead |
-           vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-       vk::AccessFlagBits::eDepthStencilAttachmentRead |
-           vk::AccessFlagBits::eDepthStencilAttachmentWrite}};
-  gRenderPass = gDevice.createRenderPass(
-      {/*flags=*/{}, attachments, subpass, dependencies});
-}
-RenderPass::~RenderPass() { gDevice.destroy(gRenderPass); }
-
-template <class V>
-struct Description {
-  static const vk::VertexInputBindingDescription binding;
-  static const std::initializer_list<vk::VertexInputAttributeDescription>
-      attribute;
-};
-
-struct Vertex {
-  glm::vec3 pos;
-  glm::vec2 uv;
-};
-template <>
-const vk::VertexInputBindingDescription Description<Vertex>::binding{
-    /*binding=*/0, /*stride=*/sizeof(Vertex), vk::VertexInputRate::eVertex};
-template <>
-const std::initializer_list<vk::VertexInputAttributeDescription>
-    Description<Vertex>::attribute{
-        {/*location=*/0, /*binding=*/0, vk::Format::eR32G32B32Sfloat,
-         offsetof(Vertex, pos)},
-        {/*location=*/1, /*binding=*/0, vk::Format::eR32G32Sfloat,
-         offsetof(Vertex, uv)}};
-
-const std::vector<Vertex> vertices = {{{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
-                                      {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},
-                                      {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
-                                      {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
-                                      {{0.5f, -0.5f, -0.5f}, {1.0f, 0.5f}},
-                                      {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f}},
-                                      {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f}},
-                                      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}}};
-
-const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
-
 MappedStagingBuffer StagingBuffer::map(vk::DeviceSize size) {
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
                                   vk::BufferUsageFlagBits::eTransferSrc,
@@ -154,16 +63,10 @@ StagingBuffer::~StagingBuffer() {
   gDevice.free(memory_);
 }
 
-VertexBuffers::VertexBuffers() {
-  count_ = (uint32_t)indices.size();
-  vertex_offset_ = 0;
-  vk::DeviceSize vertexSize = index_offset_ = sizeof(Vertex) * vertices.size();
-  vk::DeviceSize indexSize = sizeof(uint16_t) * indices.size();
-  vk::DeviceSize size = vertexSize + indexSize;
-
+VertexBuffers::VertexBuffers(const Gltf &model) {
+  vk::DeviceSize size = model.bufferSize();
   MappedStagingBuffer mapped = staging_buffer_.map(size);
-  std::copy_n((char *)&vertices[0], vertexSize, mapped.pointer_);
-  std::copy_n((char *)&indices[0], indexSize, mapped.pointer_ + index_offset_);
+  model.readBuffers(mapped.pointer_);
 
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
                                   vk::BufferUsageFlagBits::eIndexBuffer |
@@ -180,29 +83,24 @@ VertexBuffers::VertexBuffers() {
   TransferCommandBuffer transfer;
   transfer.cmd_.copyBuffer(staging_buffer_.buffer_, buffer_,
                            vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
+
+  index_type_ = model.indexType();
+  index_offset_ = model.indexOffset();
+  count_ = model.primitiveCount();
+  bind_offsets_ = model.bindOffsets();
 }
 VertexBuffers::~VertexBuffers() {
   gDevice.destroy(buffer_);
   gDevice.free(memory_);
 }
 
-vk::ImageView gTextureImageView;
-
-Textures::Textures() {
-  int width, height, channels;
-  std::unique_ptr<stbi_uc, void (*)(void *)> cpixels(
-      stbi_load("Textures/test.jpg", &width, &height, &channels,
-                STBI_rgb_alpha),
-      stbi_image_free);
-  if (!cpixels)
-    throw std::runtime_error(std::string("stbi_load: ") +
-                             stbi_failure_reason());
-
-  vk::DeviceSize size = width * height * 4;
+Textures::Textures(const Gltf &model) {
+  Pixels pixels = model.getDiffuseImage();
+  vk::DeviceSize size = pixels.size();
+  vk::Extent3D extent = pixels.extent();
+  
   MappedStagingBuffer mapped = staging_buffer_.map(size);
-  std::copy_n(cpixels.get(), size, mapped.pointer_);
-
-  vk::Extent3D extent(width, height, 1);
+  std::copy_n(pixels.data_, size, mapped.pointer_);
 
   image_ = gDevice.createImage(
       {/*flags=*/{}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, extent,
@@ -252,18 +150,29 @@ Textures::Textures() {
       /*dstStage=*/vk::PipelineStageFlagBits::eFragmentShader,
       /*dependencyFlags=*/{}, {}, {}, toShader);
 
-  gTextureImageView = gDevice.createImageView(
+  imageView_ = gDevice.createImageView(
       {/*flags=*/{}, image_, vk::ImageViewType::e2D, vk::Format::eR8G8B8A8Srgb,
        /*componentMapping=*/{}, wholeImage});
 }
 
 Textures::~Textures() {
-  gDevice.destroy(gTextureImageView);
+  gDevice.destroy(imageView_);
   gDevice.destroy(image_);
   gDevice.free(memory_);
 }
 
-Pipeline::Pipeline() {
+vk::ShaderModule readShader(const std::string &filename) {
+  std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  if (!file.is_open())
+    throw std::runtime_error("failed to open file \"" + filename + "\"");
+  size_t fileSize = (size_t)file.tellg();
+  std::vector<uint32_t> buffer(fileSize / 4);
+  file.seekg(0);
+  file.read(reinterpret_cast<char *>(buffer.data()), fileSize);
+  return gDevice.createShaderModule({vk::ShaderModuleCreateFlags(), buffer});
+}
+
+Pipeline::Pipeline(const Gltf &model) {
   // Dynamic viewport
   vk::Viewport viewport;
   vk::Rect2D scissor;
@@ -274,9 +183,7 @@ Pipeline::Pipeline() {
   vk::PipelineDynamicStateCreateInfo dynamicState(/*flags=*/{}, dynamicStates);
 
   // Fixed function stuff
-  vk::PipelineVertexInputStateCreateInfo vertexInput{
-      /*flags=*/{}, Description<Vertex>::binding,
-      Description<Vertex>::attribute};
+  vk::PipelineVertexInputStateCreateInfo vertexInput = model.vertexInput();
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
       /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
   vk::PipelineRasterizationStateCreateInfo rasterization(
@@ -378,14 +285,14 @@ void UniformBuffers::update() {
       (now - start) % std::chrono::seconds(4);
   MVP mvp;
   mvp.model = glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-                          glm::vec3(0.f, 0.f, 1.f));
-  mvp.view = glm::lookAt(/*eye=*/glm::vec3(2.f, 2.f, 2.f),
-                         /*center=*/glm::vec3(0.f, 0.f, 0.f),
-                         /*camera-y=*/glm::vec3(0.f, 0.f, -1.f));
+                          glm::vec3(0.f, 1.f, 0.f));
+  mvp.view = glm::lookAt(/*eye=*/glm::vec3(30.f, 30.f, 30.f),
+                         /*center=*/glm::vec3(0.f, 5.f, 0.f),
+                         /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));
   mvp.projection =
       glm::perspective(/*fovy=*/glm::radians(45.f),
                        gSwapchainExtent.width / (float)gSwapchainExtent.height,
-                       /*znear=*/0.1f, /*zfar=*/10.f);
+                       /*znear=*/0.1f, /*zfar=*/100.f);
 
   size_t offset = gSwapchainCurrentImage * uniformSize<MVP>();
   std::copy_n((char *)&mvp, uniformSize<MVP>(), mapping_ + offset);
@@ -399,7 +306,8 @@ UniformBuffers::~UniformBuffers() {
   gDevice.free(memory_);
 }
 
-DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
+DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
+                               const Textures &textures) {
   std::initializer_list<vk::DescriptorPoolSize> sizes = {
       {vk::DescriptorType::eUniformBuffer,
        /*count=*/gSwapchainImageCount},
@@ -419,7 +327,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout) {
         vk::DescriptorType::eUniformBuffer, {}, bufferInfo,
         /*texelBufferView=*/{});
 
-    vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, gTextureImageView,
+    vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, textures.imageView_,
                                       vk::ImageLayout::eShaderReadOnlyOptimal);
     vk::WriteDescriptorSet writeImage(
         descriptorSets_[i], /*binding=*/1, /*arrayElement=*/0,
@@ -454,10 +362,12 @@ CommandBuffers::CommandBuffers(const Pipeline &pipeline,
     buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
                            /*firstSet=*/0, descriptorPool.descriptorSets_[i],
                            /*dynamicOffsets=*/{});
-    buf.bindVertexBuffers(/*bindingOffset=*/0, vertices.buffer_,
-                          vertices.vertex_offset_);
+    for (uint32_t binding = 0; binding < vertices.bind_offsets_.size();
+         ++binding)
+      buf.bindVertexBuffers(binding, vertices.buffer_,
+                            vertices.bind_offsets_[binding]);
     buf.bindIndexBuffer(vertices.buffer_, vertices.index_offset_,
-                        vk::IndexType::eUint16);
+                        vertices.index_type_);
     buf.drawIndexed(vertices.count_, /*instanceCount=*/1, /*firstIndex=*/0,
                     /*vertexOffset=*/0,
                     /*firstInstance=*/0);

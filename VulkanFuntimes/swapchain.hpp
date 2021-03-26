@@ -50,4 +50,10 @@ struct Framebuffers {
   ~Framebuffers();
 };
 
+extern vk::RenderPass gRenderPass;
+struct RenderPass {
+  RenderPass();
+  ~RenderPass();
+};
+
 #endif /* swapchain_hpp */

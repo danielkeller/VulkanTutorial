@@ -171,3 +171,50 @@ Framebuffers::~Framebuffers() {
   for (vk::Framebuffer fb : gFramebuffers) gDevice.destroy(fb);
   gFramebuffers.clear();
 }
+
+vk::RenderPass gRenderPass;
+
+RenderPass::RenderPass() {
+  std::initializer_list<vk::AttachmentDescription> attachments = {
+      {/*flags=*/{}, kPresentFormat, vk::SampleCountFlagBits::e1,
+       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+       /*stencil*/ vk::AttachmentLoadOp::eDontCare,
+       vk::AttachmentStoreOp::eDontCare,
+       /*initialLayout=*/vk::ImageLayout::eUndefined,
+       /*finalLayout=*/vk::ImageLayout::ePresentSrcKHR},
+      {/*flags=*/{}, kDepthStencilFormat, vk::SampleCountFlagBits::e1,
+       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+       /*stencil*/ vk::AttachmentLoadOp::eClear,
+       vk::AttachmentStoreOp::eDontCare,
+       /*initialLayout=*/vk::ImageLayout::eUndefined,
+       /*finalLayout=*/vk::ImageLayout::eDepthStencilAttachmentOptimal}};
+
+  vk::AttachmentReference colorRef(
+      /*attachment=*/0, vk::ImageLayout::eColorAttachmentOptimal);
+  vk::AttachmentReference depthStencilRef(
+      /*attachment=*/1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+  // Attachment ref index corresponds to layout number in shader
+  vk::SubpassDescription subpass(
+      /*flags=*/{}, vk::PipelineBindPoint::eGraphics,
+      /*inputAttachments=*/{}, colorRef, /*resolveAttachments=*/{},
+      &depthStencilRef);
+  // Don't write to the image until the presenter is done with it
+  std::initializer_list<vk::SubpassDependency> dependencies = {
+      {/*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
+       /*src=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
+       /*dst=*/vk::PipelineStageFlagBits::eColorAttachmentOutput,
+       /*src=*/vk::AccessFlags(),
+       /*dst=*/vk::AccessFlagBits::eColorAttachmentWrite},
+      // Don't touch the depth buffer until the previous frame is done with it
+      {/*src=*/VK_SUBPASS_EXTERNAL, /*dstSubpass=*/0,
+       vk::PipelineStageFlagBits::eLateFragmentTests,
+       vk::PipelineStageFlagBits::eEarlyFragmentTests,
+       vk::AccessFlagBits::eDepthStencilAttachmentRead |
+           vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+       vk::AccessFlagBits::eDepthStencilAttachmentRead |
+           vk::AccessFlagBits::eDepthStencilAttachmentWrite}};
+  gRenderPass = gDevice.createRenderPass(
+      {/*flags=*/{}, attachments, subpass, dependencies});
+}
+RenderPass::~RenderPass() { gDevice.destroy(gRenderPass); }
+

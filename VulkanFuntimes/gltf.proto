@@ -12,17 +12,17 @@ message Asset {
 
 message Scene {
   optional string name = 1;
-  repeated uint64 nodes = 2;
+  repeated uint32 nodes = 2;
 }
 
 message Node {
   optional string name = 1;
-  repeated uint64 children = 2;
-  repeated float translation = 3;
+  repeated uint32 children = 2;
+  repeated float translation = 3 [packed = true];
   // Quaternion
-  repeated float rotation = 4;
-  repeated float scale = 5;
-  repeated float matrix = 6;
+  repeated float rotation = 4 [packed = true];
+  repeated float scale = 5 [packed = true];
+  repeated float matrix = 6 [packed = true];
   optional uint64 mesh = 7;
 }
 
@@ -31,56 +31,62 @@ message Buffer {
   optional string uri = 2;
 }
 
+enum BufferTarget {
+  UNKNOWN_BUFFER_TARGET = 0;
+  ARRAY_BUFFER = 34962;
+  ELEMENT_ARRAY_BUFFER = 34963;
+}
+
 message BufferView {
-  optional uint64 buffer = 1;
+  optional uint32 buffer = 1;
   optional uint64 byteLength = 2;
   optional uint64 byteOffset = 3;
-  optional uint64 byteStride = 4;
-  optional uint64 target = 5;  // FIXME
+  optional uint32 byteStride = 4;
+  optional BufferTarget target = 5;
 }
 
 enum ComponentType {
   UNKNOWN_COMPONENT = 0;
-  BYTE = 5120;
-  UNSIGNED_BYTE = 5121;
-  SHORT = 5122;
-  UNSIGNED_SHORT = 5123;
+//  BYTE = 5120;
+//  UNSIGNED_BYTE = 5121;
+//  SHORT = 5122;
+//  UNSIGNED_SHORT = 5123;
   UNSIGNED_INT = 5125;
   FLOAT = 5126;
 }
 enum Type {
-  option allow_alias = true;
+//  option allow_alias = true;
   UNKNOWN_TYPE = 0;
   SCALAR = 1;
   VEC2 = 2;
   VEC3 = 3;
   VEC4 = 4;
-  MAT2 = 4;
-  MAT3 = 9;
-  MAT4 = 16;
+//  MAT2 = 4;
+//  MAT3 = 9;
+//  MAT4 = 16;
 }
 
 message Accessor {
-  optional uint64 bufferView = 1;
-  optional uint64 byteOffset = 2;
+  optional uint32 bufferView = 1;
+  optional uint32 byteOffset = 2;
   optional ComponentType componentType = 3;
   optional Type type = 4;
-  optional uint64 count = 5;
-  repeated double min = 6;
-  repeated double max = 7;
+  optional uint32 count = 5;
+  repeated double min = 6 [packed = true];
+  repeated double max = 7 [packed = true];
 }
 
 message Primitive {
   message Attributes {
-    optional uint64 UNKNOWN_ATTRIBUTE = 1;
-    optional uint64 POSITION = 2;
-    optional uint64 NORMAL = 3;
-    optional uint64 TANGENT = 4;
-    optional uint64 TEXCOORD_0 = 5;
+    optional uint32 UNKNOWN_ATTRIBUTE = 1;
+    optional uint32 POSITION = 2;
+    optional uint32 NORMAL = 3;
+    optional uint32 TANGENT = 4;
+    optional uint32 TEXCOORD_0 = 5;
   }
   optional Attributes attributes = 1;
-  optional uint64 indices = 2;
-  optional uint64 material = 3;
+  optional uint32 indices = 2;
+  optional uint32 material = 3;
   enum Mode {
     UNKNOWN_MODE = 0;
     TRIANGLES = 4;
@@ -96,7 +102,7 @@ message Mesh {
 message Image {
   optional string name = 1;
   optional string uri = 2;
-  optional uint64 bufferView = 3;
+  optional uint32 bufferView = 3;
   optional string mimeType = 4;
 }
 
@@ -123,31 +129,31 @@ message Sampler {
 }
 
 message Texture {
-  optional uint64 sampler = 1;
-  optional uint64 source = 2;
+  optional uint32 sampler = 1;
+  optional uint32 source = 2;
 }
 
 message TextureInfo {
-  optional uint64 index = 1;
-  optional uint64 texCoord = 2;
+  optional uint32 index = 1;
+  optional uint32 texCoord = 2;
 }
 
 message NormalTextureInfo {
-  optional uint64 index = 1;
-  optional uint64 texCoord = 2;
+  optional uint32 index = 1;
+  optional uint32 texCoord = 2;
   optional float scale = 3 [default = 1];
 }
 
 message OcclusionTextureInfo {
-  optional uint64 index = 1;
-  optional uint64 texCoord = 2;
+  optional uint32 index = 1;
+  optional uint32 texCoord = 2;
   optional float strength = 3 [default = 1];
 }
 
 message PbrMetallicRoughness {
   optional TextureInfo baseColorTexture = 1;
   optional TextureInfo metallicRoughnessTexture = 2;
-  repeated float baseColorFactor = 3;
+  repeated float baseColorFactor = 3 [packed = true];
   optional float metallicFactor = 4 [default = 1];
   optional float roughnessFactor = 5 [default = 1];
 }
@@ -158,13 +164,13 @@ message Material {
   optional NormalTextureInfo normalTexture = 3;
   optional OcclusionTextureInfo occlusionTexture = 4;
   optional TextureInfo emissiveTexture = 5;
-  repeated float emissiveFactor = 6;
+  repeated float emissiveFactor = 6 [packed = true];
   optional bool doubleSided = 7;
 }
 
 message Gltf {
   optional Asset asset = 1;
-  optional uint64 scene = 2;
+  optional uint32 scene = 2;
   repeated Scene scenes = 3;
   repeated Node nodes = 4;
   
