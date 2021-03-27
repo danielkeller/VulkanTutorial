@@ -330,6 +330,7 @@ CommandPool::CommandPool() {
 }
 CommandPool::~CommandPool() {
   for (vk::CommandPool pool : gCommandPools) gDevice.destroy(pool);
+  gCommandPools.clear();
 }
 
 glm::mat4 getCamera() {
