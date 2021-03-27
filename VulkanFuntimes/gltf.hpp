@@ -23,6 +23,7 @@ struct Gltf {
   vk::PipelineVertexInputStateCreateInfo vertexInput() const;
   vk::DeviceSize bufferSize() const;
   void readBuffers(char* output) const;
+  void readUniforms(char* output) const;
   vk::IndexType indexType() const;
   vk::DeviceSize indexOffset() const;
   uint32_t primitiveCount() const;

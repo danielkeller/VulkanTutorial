@@ -23,7 +23,7 @@ void mainApp() {
   TransferCommandPool transferCommandPool;
   VertexBuffers vertexBuffers1(gltffile);
   Textures textures1(gltffile);
-  UniformBuffers uniformBuffers;
+  UniformBuffers uniformBuffers(gltffile);
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1);
 
   while (!glfwWindowShouldClose(gWindow)) {

@@ -61,7 +61,7 @@ struct Textures {
 struct UniformBuffers {
   vk::DeviceMemory memory_;
   char* mapping_;
-  UniformBuffers();
+  UniformBuffers(const Gltf& gltf);
   ~UniformBuffers();
 };
 

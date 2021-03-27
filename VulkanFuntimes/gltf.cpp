@@ -4,6 +4,9 @@
 #include <filesystem>
 #include <fstream>
 #include "stb_image.h"
+#include "glm/gtc/type_ptr.hpp"
+#include "glm/mat4x4.hpp"
+#include "glm/gtx/string_cast.hpp"
 
 Gltf::Gltf(std::filesystem::path path) {
   directory_ = path;
@@ -103,6 +106,44 @@ void Gltf::readBuffers(char* output) const {
   }
 }
 
+void Gltf::readUniforms(char* output) const {
+  // Find the one mesh
+  std::vector<uint32_t> nodes;
+  nodes.push_back(data_.scenes(data_.scene()).nodes(0));
+  while (data_.nodes(nodes.back()).children_size())
+    nodes.push_back(data_.nodes(nodes.back()).children(0));
+  while (!data_.nodes(nodes.back()).has_mesh()) {
+    uint32_t prev = nodes.back();
+    nodes.pop_back();
+    if (nodes.empty()) return;  // No mesh
+
+    auto siblings = data_.nodes(nodes.back()).children();
+    auto it = std::find(siblings.begin(), siblings.end(), prev) + 1;
+    if (it != siblings.end()) {
+      nodes.push_back(*it);
+      while (data_.nodes(nodes.back()).children_size())
+        nodes.push_back(data_.nodes(nodes.back()).children(0));
+    }
+  }
+
+  // Apply transforms left (last) to right (first)
+  glm::mat4 result(1.);
+  for (uint32_t node : nodes) {
+    const gltf::Node data = data_.nodes(node);
+    if (data.matrix_size() == 16)
+      result *= glm::make_mat4(data.matrix().data());
+    if (data.translation_size() == 3)
+      result =
+          glm::translate(result, glm::make_vec3(data.translation().data()));
+    if (data.rotation_size() == 4)
+      result *= glm::mat4(glm::make_quat(data.rotation().data()));
+    if (data.scale_size() == 3)
+      result = glm::scale(result, glm::make_vec3(data.scale().data()));
+  }
+
+  std::copy_n((char*)&result, sizeof(glm::mat4), output);
+}
+
 vk::IndexType Gltf::indexType() const {
   const gltf::Accessor& accessor =
       data_.accessors(data_.meshes(0).primitives(0).indices());
@@ -133,8 +174,8 @@ Pixels Gltf::getDiffuseImage() const {
 
   Pixels result;
   int width, height, channels;
-  result.data_ = stbi_load(path.c_str(), &width, &height,
-                           &channels, STBI_rgb_alpha);
+  result.data_ =
+      stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
   result.width_ = width;
   result.height_ = height;
   if (!result.data_)

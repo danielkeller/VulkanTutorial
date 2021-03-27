@@ -263,13 +263,10 @@ vk::DeviceSize uniformSize() {
   return ((sizeof(T) + align - 1) / align) * align;
 }
 
-struct Model {
-  glm::mat4 model;
-};
 vk::Buffer gUniformBuffer;
 
-UniformBuffers::UniformBuffers() {
-  vk::DeviceSize size = uniformSize<Model>();
+UniformBuffers::UniformBuffers(const Gltf& gltf) {
+  vk::DeviceSize size = uniformSize<glm::mat4>();
   gUniformBuffer = gDevice.createBuffer(
       {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
        vk::SharingMode::eExclusive});
@@ -278,12 +275,10 @@ UniformBuffers::UniformBuffers() {
                    vk::MemoryPropertyFlagBits::eHostVisible |
                        vk::MemoryPropertyFlagBits::eHostCoherent);
   memory_ = gDevice.allocateMemory({size, stagingMemoryType});
+  
   gDevice.bindBufferMemory(gUniformBuffer, memory_, /*offset=*/0);
   mapping_ = (char *)gDevice.mapMemory(memory_, /*offset=*/0, size);
-
-  Model model;
-  model.model = glm::mat4(1.);
-  std::copy_n((char *)&model, uniformSize<Model>(), mapping_);
+  gltf.readUniforms(mapping_);
   // eHostCoherent handles flushes and the later queue submit creates a memory
   // barrier
 }
@@ -303,7 +298,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
 
   descriptorSet_ = gDevice.allocateDescriptorSets({pool_, layout})[0];
 
-  vk::DeviceSize size = uniformSize<Model>();
+  vk::DeviceSize size = uniformSize<glm::mat4>();
   vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, /*offset=*/0, size);
   vk::WriteDescriptorSet writeBuffer(descriptorSet_, /*binding=*/0,
                                      /*arrayElement=*/0,
@@ -334,19 +329,19 @@ CommandPool::~CommandPool() {
 }
 
 glm::mat4 getCamera() {
-  static auto start = std::chrono::high_resolution_clock::now();
-  auto now = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float> spinTime =
-      (now - start) % std::chrono::seconds(4);
+//  static auto start = std::chrono::high_resolution_clock::now();
+//  auto now = std::chrono::high_resolution_clock::now();
+//  std::chrono::duration<float> spinTime =
+//      (now - start) % std::chrono::seconds(4);
   return glm::perspective(
              /*fovy=*/glm::radians(45.f),
              gSwapchainExtent.width / (float)gSwapchainExtent.height,
              /*znear=*/0.1f, /*zfar=*/100.f) *
          glm::lookAt(/*eye=*/glm::vec3(30.f, 30.f, 30.f),
                      /*center=*/glm::vec3(0.f, 5.f, 0.f),
-                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f)) *
-         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-                     glm::vec3(0.f, 1.f, 0.f));
+                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));// *
+//         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+//                     glm::vec3(0.f, 1.f, 0.f));
 }
 
 CommandBuffer::CommandBuffer(const Pipeline &pipeline,
