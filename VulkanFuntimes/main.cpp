@@ -26,8 +26,6 @@ void mainApp() {
   UniformBuffers uniformBuffers;
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1);
 
-  gGraphicsQueue.waitIdle();
-
   while (!glfwWindowShouldClose(gWindow)) {
     swapchain.resizeToWindow();
     Semaphores semaphores;

@@ -76,6 +76,16 @@ VertexBuffers::VertexBuffers(const Gltf &model) {
   transfer.cmd_.copyBuffer(staging_buffer_.buffer_, buffer_,
                            vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
 
+  vk::BufferMemoryBarrier barrier(
+      vk::AccessFlagBits::eTransferWrite,
+      vk::AccessFlagBits::eIndexRead | vk::AccessFlagBits::eVertexAttributeRead,
+      gGraphicsQueueFamilyIndex, gGraphicsQueueFamilyIndex, buffer_,
+      /*offset=*/0, size);
+  transfer.cmd_.pipelineBarrier(
+      /*srcStage=*/vk::PipelineStageFlagBits::eTransfer,
+      /*dstStage=*/vk::PipelineStageFlagBits::eVertexInput,
+      /*dependencyFlags=*/{}, {}, barrier, {});
+
   index_type_ = model.indexType();
   index_offset_ = model.indexOffset();
   count_ = model.primitiveCount();
