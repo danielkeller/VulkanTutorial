@@ -4,6 +4,15 @@
 #include "vulkan/vulkan.hpp"
 #include "gltf.hpp"
 
+struct Pipeline {
+  vk::DescriptorSetLayout descriptorSetLayout_;
+  vk::PipelineLayout layout_;
+  vk::Sampler sampler_;
+  vk::Pipeline pipeline_;
+  Pipeline(const Gltf& model);
+  ~Pipeline();
+};
+
 extern vk::CommandPool gTransferCommandPool;
 struct TransferCommandPool {
   TransferCommandPool();
@@ -13,15 +22,6 @@ struct TransferCommandBuffer {
   TransferCommandBuffer();
   ~TransferCommandBuffer();
   vk::CommandBuffer cmd_;
-};
-
-struct Pipeline {
-  vk::DescriptorSetLayout descriptorSetLayout_;
-  vk::PipelineLayout layout_;
-  vk::Sampler sampler_;
-  vk::Pipeline pipeline_;
-  Pipeline(const Gltf& model);
-  ~Pipeline();
 };
 
 struct MappedStagingBuffer;

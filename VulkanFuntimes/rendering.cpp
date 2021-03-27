@@ -12,6 +12,98 @@
 #include "driver.hpp"
 #include "swapchain.hpp"
 
+vk::ShaderModule readShader(const std::string &filename) {
+  std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  if (!file.is_open())
+    throw std::runtime_error("failed to open file \"" + filename + "\"");
+  size_t fileSize = (size_t)file.tellg();
+  std::vector<uint32_t> buffer(fileSize / 4);
+  file.seekg(0);
+  file.read(reinterpret_cast<char *>(buffer.data()), fileSize);
+  return gDevice.createShaderModule({vk::ShaderModuleCreateFlags(), buffer});
+}
+
+Pipeline::Pipeline(const Gltf &model) {
+  // Dynamic viewport
+  vk::Viewport viewport;
+  vk::Rect2D scissor;
+  vk::PipelineViewportStateCreateInfo viewportState(
+      /*flags=*/{}, viewport, scissor);
+  auto dynamicStates = {vk::DynamicState::eViewport,
+                        vk::DynamicState::eScissor};
+  vk::PipelineDynamicStateCreateInfo dynamicState(/*flags=*/{}, dynamicStates);
+
+  // Fixed function stuff
+  vk::PipelineVertexInputStateCreateInfo vertexInput = model.vertexInput();
+  vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
+      /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
+  vk::PipelineRasterizationStateCreateInfo rasterization(
+      /*flags=*/{}, /*depthClampEnable=*/false,
+      /*rasterizerDiscardEnable=*/false, vk::PolygonMode::eFill,
+      vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise,
+      /*depthBiasEnable=*/false, {}, {}, {}, /*lineWidth=*/1);
+  vk::PipelineDepthStencilStateCreateInfo depthStencil(
+      /*flags=*/{}, /*depthTestEnable=*/true, /*depthWriteEnable=*/true,
+      vk::CompareOp::eLess);
+  vk::PipelineMultisampleStateCreateInfo multisample;
+  vk::PipelineColorBlendAttachmentState colorBlend1;
+  colorBlend1.colorWriteMask = ~vk::ColorComponentFlags();  // All
+  vk::PipelineColorBlendStateCreateInfo colorBlend(
+      /*flags=*/{}, /*logicOpEnable=*/false, /*logicOp=*/{}, colorBlend1);
+
+  vk::SamplerCreateInfo samplerCreate(/*flags=*/{}, vk::Filter::eLinear,
+                                      vk::Filter::eLinear,
+                                      vk::SamplerMipmapMode::eLinear);
+  samplerCreate.setAnisotropyEnable(true);
+  samplerCreate.setMaxAnisotropy(
+      gPhysicalDeviceProperties.limits.maxSamplerAnisotropy);
+  sampler_ = gDevice.createSampler(samplerCreate);
+
+  std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
+      {/*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
+       vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr},
+      {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
+       vk::ShaderStageFlagBits::eFragment,
+       /*immutableSamplers=*/sampler_}};
+  descriptorSetLayout_ =
+      gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
+  vk::PushConstantRange pushConstants(vk::ShaderStageFlagBits::eVertex,
+                                      /*offset=*/0, sizeof(glm::mat4));
+
+  layout_ = gDevice.createPipelineLayout(
+      {/*flags=*/{}, descriptorSetLayout_, pushConstants});
+
+  vk::ShaderModule vert = readShader("triangle.vert");
+  vk::ShaderModule frag = readShader("test.frag");
+
+  std::initializer_list<vk::PipelineShaderStageCreateInfo> stages = {
+      {/*flags=*/{}, vk::ShaderStageFlagBits::eVertex, vert, /*pName=*/"main"},
+      {/*flags=*/{}, vk::ShaderStageFlagBits::eFragment, frag,
+       /*pName=*/"main"}};
+
+  vk::ResultValue<std::vector<vk::Pipeline>> pipelines_or =
+      gDevice.createGraphicsPipelines(
+          /*pipelineCache=*/nullptr,
+          {{/*flags=*/{}, stages, &vertexInput, &inputAssembly,
+            /*tesselation=*/{}, &viewportState, &rasterization, &multisample,
+            &depthStencil, &colorBlend, &dynamicState, layout_, gRenderPass,
+            /*subpass=*/0, /*basePipeline=*/{}}});
+
+  gDevice.destroy(vert);
+  gDevice.destroy(frag);
+
+  throwFail("vkCreateGraphicsPipelines", pipelines_or.result);
+  if (pipelines_or.value.empty())
+    throw std::runtime_error("No pipeline returned???");
+  pipeline_ = pipelines_or.value[0];
+}
+Pipeline::~Pipeline() {
+  gDevice.destroy(pipeline_);
+  gDevice.destroy(layout_);
+  gDevice.destroy(sampler_);
+  gDevice.destroy(descriptorSetLayout_);
+}
+
 vk::CommandPool gTransferCommandPool;
 
 TransferCommandPool::TransferCommandPool() {
@@ -163,98 +255,6 @@ Textures::~Textures() {
   gDevice.free(memory_);
 }
 
-vk::ShaderModule readShader(const std::string &filename) {
-  std::ifstream file(filename, std::ios::ate | std::ios::binary);
-  if (!file.is_open())
-    throw std::runtime_error("failed to open file \"" + filename + "\"");
-  size_t fileSize = (size_t)file.tellg();
-  std::vector<uint32_t> buffer(fileSize / 4);
-  file.seekg(0);
-  file.read(reinterpret_cast<char *>(buffer.data()), fileSize);
-  return gDevice.createShaderModule({vk::ShaderModuleCreateFlags(), buffer});
-}
-
-Pipeline::Pipeline(const Gltf &model) {
-  // Dynamic viewport
-  vk::Viewport viewport;
-  vk::Rect2D scissor;
-  vk::PipelineViewportStateCreateInfo viewportState(
-      /*flags=*/{}, viewport, scissor);
-  auto dynamicStates = {vk::DynamicState::eViewport,
-                        vk::DynamicState::eScissor};
-  vk::PipelineDynamicStateCreateInfo dynamicState(/*flags=*/{}, dynamicStates);
-
-  // Fixed function stuff
-  vk::PipelineVertexInputStateCreateInfo vertexInput = model.vertexInput();
-  vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
-      /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
-  vk::PipelineRasterizationStateCreateInfo rasterization(
-      /*flags=*/{}, /*depthClampEnable=*/false,
-      /*rasterizerDiscardEnable=*/false, vk::PolygonMode::eFill,
-      vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise,
-      /*depthBiasEnable=*/false, {}, {}, {}, /*lineWidth=*/1);
-  vk::PipelineDepthStencilStateCreateInfo depthStencil(
-      /*flags=*/{}, /*depthTestEnable=*/true, /*depthWriteEnable=*/true,
-      vk::CompareOp::eLess);
-  vk::PipelineMultisampleStateCreateInfo multisample;
-  vk::PipelineColorBlendAttachmentState colorBlend1;
-  colorBlend1.colorWriteMask = ~vk::ColorComponentFlags();  // All
-  vk::PipelineColorBlendStateCreateInfo colorBlend(
-      /*flags=*/{}, /*logicOpEnable=*/false, /*logicOp=*/{}, colorBlend1);
-
-  vk::SamplerCreateInfo samplerCreate(/*flags=*/{}, vk::Filter::eLinear,
-                                      vk::Filter::eLinear,
-                                      vk::SamplerMipmapMode::eLinear);
-  samplerCreate.setAnisotropyEnable(true);
-  samplerCreate.setMaxAnisotropy(
-      gPhysicalDeviceProperties.limits.maxSamplerAnisotropy);
-  sampler_ = gDevice.createSampler(samplerCreate);
-
-  std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
-      {/*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
-       vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr},
-      {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
-       vk::ShaderStageFlagBits::eFragment,
-       /*immutableSamplers=*/sampler_}};
-  descriptorSetLayout_ =
-      gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
-  vk::PushConstantRange pushConstants(vk::ShaderStageFlagBits::eVertex,
-                                      /*offset=*/0, sizeof(glm::mat4));
-
-  layout_ = gDevice.createPipelineLayout(
-      {/*flags=*/{}, descriptorSetLayout_, pushConstants});
-
-  vk::ShaderModule vert = readShader("triangle.vert");
-  vk::ShaderModule frag = readShader("test.frag");
-
-  std::initializer_list<vk::PipelineShaderStageCreateInfo> stages = {
-      {/*flags=*/{}, vk::ShaderStageFlagBits::eVertex, vert, /*pName=*/"main"},
-      {/*flags=*/{}, vk::ShaderStageFlagBits::eFragment, frag,
-       /*pName=*/"main"}};
-
-  vk::ResultValue<std::vector<vk::Pipeline>> pipelines_or =
-      gDevice.createGraphicsPipelines(
-          /*pipelineCache=*/nullptr,
-          {{/*flags=*/{}, stages, &vertexInput, &inputAssembly,
-            /*tesselation=*/{}, &viewportState, &rasterization, &multisample,
-            &depthStencil, &colorBlend, &dynamicState, layout_, gRenderPass,
-            /*subpass=*/0, /*basePipeline=*/{}}});
-
-  gDevice.destroy(vert);
-  gDevice.destroy(frag);
-
-  throwFail("vkCreateGraphicsPipelines", pipelines_or.result);
-  if (pipelines_or.value.empty())
-    throw std::runtime_error("No pipeline returned???");
-  pipeline_ = pipelines_or.value[0];
-}
-Pipeline::~Pipeline() {
-  gDevice.destroy(pipeline_);
-  gDevice.destroy(layout_);
-  gDevice.destroy(sampler_);
-  gDevice.destroy(descriptorSetLayout_);
-}
-
 template <class T>
 vk::DeviceSize uniformSize() {
   static_assert(sizeof(T), "Empty uniform object");
@@ -265,7 +265,7 @@ vk::DeviceSize uniformSize() {
 
 vk::Buffer gUniformBuffer;
 
-UniformBuffers::UniformBuffers(const Gltf& gltf) {
+UniformBuffers::UniformBuffers(const Gltf &gltf) {
   vk::DeviceSize size = uniformSize<glm::mat4>();
   gUniformBuffer = gDevice.createBuffer(
       {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
@@ -275,7 +275,7 @@ UniformBuffers::UniformBuffers(const Gltf& gltf) {
                    vk::MemoryPropertyFlagBits::eHostVisible |
                        vk::MemoryPropertyFlagBits::eHostCoherent);
   memory_ = gDevice.allocateMemory({size, stagingMemoryType});
-  
+
   gDevice.bindBufferMemory(gUniformBuffer, memory_, /*offset=*/0);
   mapping_ = (char *)gDevice.mapMemory(memory_, /*offset=*/0, size);
   gltf.readUniforms(mapping_);
@@ -329,19 +329,19 @@ CommandPool::~CommandPool() {
 }
 
 glm::mat4 getCamera() {
-//  static auto start = std::chrono::high_resolution_clock::now();
-//  auto now = std::chrono::high_resolution_clock::now();
-//  std::chrono::duration<float> spinTime =
-//      (now - start) % std::chrono::seconds(4);
+  //  static auto start = std::chrono::high_resolution_clock::now();
+  //  auto now = std::chrono::high_resolution_clock::now();
+  //  std::chrono::duration<float> spinTime =
+  //      (now - start) % std::chrono::seconds(4);
   return glm::perspective(
              /*fovy=*/glm::radians(45.f),
              gSwapchainExtent.width / (float)gSwapchainExtent.height,
              /*znear=*/0.1f, /*zfar=*/100.f) *
          glm::lookAt(/*eye=*/glm::vec3(30.f, 30.f, 30.f),
                      /*center=*/glm::vec3(0.f, 5.f, 0.f),
-                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));// *
-//         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-//                     glm::vec3(0.f, 1.f, 0.f));
+                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));  // *
+  //         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+  //                     glm::vec3(0.f, 1.f, 0.f));
 }
 
 CommandBuffer::CommandBuffer(const Pipeline &pipeline,
