@@ -37,6 +37,14 @@ struct Device {
 uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
                       vk::MemoryPropertyFlags memFlagRequirements);
 
+template <class T>
+vk::DeviceSize uniformSize() {
+  static_assert(sizeof(T), "Empty uniform object");
+  vk::DeviceSize align =
+      gPhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+  return ((sizeof(T) + align - 1) / align) * align;
+}
+
 extern uint64_t gFrame;
 struct FpsCount {
   static constexpr uint64_t kInterval = 200;

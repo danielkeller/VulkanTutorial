@@ -41,10 +41,6 @@ struct VertexBuffers {
   vk::Buffer buffer_;
   vk::DeviceMemory memory_;
   StagingBuffer staging_buffer_;
-  vk::DeviceSize index_offset_;
-  uint32_t count_;
-  vk::IndexType index_type_;
-  std::vector<vk::DeviceSize> bind_offsets_;
   VertexBuffers(const Gltf& model);
   ~VertexBuffers();
 };
@@ -81,7 +77,8 @@ struct CommandPool {
 struct CommandBuffer {
   vk::CommandBuffer buf_;
   CommandBuffer(const Pipeline& pipeline, const DescriptorPool& descriptorPool,
-                const VertexBuffers& vertices);
+                const VertexBuffers& vertices,
+                const Gltf& gltf);
 };
 
 #endif /* rendering_hpp */

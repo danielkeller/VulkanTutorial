@@ -34,7 +34,7 @@ Pipeline::Pipeline(const Gltf &model) {
   vk::PipelineDynamicStateCreateInfo dynamicState(/*flags=*/{}, dynamicStates);
 
   // Fixed function stuff
-  vk::PipelineVertexInputStateCreateInfo vertexInput = model.vertexInput();
+  vk::PipelineVertexInputStateCreateInfo vertexInput = model.pipelineInfo(0);
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
       /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
   vk::PipelineRasterizationStateCreateInfo rasterization(
@@ -60,8 +60,9 @@ Pipeline::Pipeline(const Gltf &model) {
   sampler_ = gDevice.createSampler(samplerCreate);
 
   std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
-      {/*binding=*/0, vk::DescriptorType::eUniformBuffer, /*descriptorCount=*/1,
-       vk::ShaderStageFlagBits::eVertex, /*immutableSamplers=*/nullptr},
+      {/*binding=*/0, vk::DescriptorType::eUniformBufferDynamic,
+       /*descriptorCount=*/1, vk::ShaderStageFlagBits::eVertex,
+       /*immutableSamplers=*/nullptr},
       {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
        vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/sampler_}};
@@ -177,11 +178,6 @@ VertexBuffers::VertexBuffers(const Gltf &model) {
       /*srcStage=*/vk::PipelineStageFlagBits::eTransfer,
       /*dstStage=*/vk::PipelineStageFlagBits::eVertexInput,
       /*dependencyFlags=*/{}, {}, barrier, {});
-
-  index_type_ = model.indexType();
-  index_offset_ = model.indexOffset();
-  count_ = model.primitiveCount();
-  bind_offsets_ = model.bindOffsets();
 }
 VertexBuffers::~VertexBuffers() {
   gDevice.destroy(buffer_);
@@ -255,18 +251,10 @@ Textures::~Textures() {
   gDevice.free(memory_);
 }
 
-template <class T>
-vk::DeviceSize uniformSize() {
-  static_assert(sizeof(T), "Empty uniform object");
-  vk::DeviceSize align =
-      gPhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-  return ((sizeof(T) + align - 1) / align) * align;
-}
-
 vk::Buffer gUniformBuffer;
 
 UniformBuffers::UniformBuffers(const Gltf &gltf) {
-  vk::DeviceSize size = uniformSize<glm::mat4>();
+  vk::DeviceSize size = gltf.uniformsSize();
   gUniformBuffer = gDevice.createBuffer(
       {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
        vk::SharingMode::eExclusive});
@@ -292,7 +280,7 @@ UniformBuffers::~UniformBuffers() {
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                const Textures &textures) {
   std::initializer_list<vk::DescriptorPoolSize> sizes = {
-      {vk::DescriptorType::eUniformBuffer, /*count=*/1},
+      {vk::DescriptorType::eUniformBufferDynamic, /*count=*/1},
       {vk::DescriptorType::eCombinedImageSampler, /*count=*/1}};
   pool_ = gDevice.createDescriptorPool({/*flags=*/{}, /*maxSets=*/1, sizes});
 
@@ -302,8 +290,8 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
   vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, /*offset=*/0, size);
   vk::WriteDescriptorSet writeBuffer(descriptorSet_, /*binding=*/0,
                                      /*arrayElement=*/0,
-                                     vk::DescriptorType::eUniformBuffer, {},
-                                     bufferInfo, /*texelBufferView=*/{});
+                                     vk::DescriptorType::eUniformBufferDynamic,
+                                     {}, bufferInfo, /*texelBufferView=*/{});
 
   vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, textures.imageView_,
                                     vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -346,7 +334,7 @@ glm::mat4 getCamera() {
 
 CommandBuffer::CommandBuffer(const Pipeline &pipeline,
                              const DescriptorPool &descriptorPool,
-                             const VertexBuffers &vertices) {
+                             const VertexBuffers &vertices, const Gltf &gltf) {
   vk::CommandPool pool = gCommandPools[gSwapchainCurrentImage];
   if (gFrame % 100 == 0) gDevice.resetCommandPool(pool);
   buf_ = gDevice.allocateCommandBuffers(
@@ -363,20 +351,26 @@ CommandBuffer::CommandBuffer(const Pipeline &pipeline,
        vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearValues},
       vk::SubpassContents::eInline);
   buf_.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
-  buf_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
-                          /*firstSet=*/0, descriptorPool.descriptorSet_,
-                          /*dynamicOffsets=*/{});
   glm::mat4 camera = getCamera();
   buf_.pushConstants(pipeline.layout_, vk::ShaderStageFlagBits::eVertex,
                      /*offset=*/0, sizeof camera, (void *)&camera);
-  for (uint32_t binding = 0; binding < vertices.bind_offsets_.size(); ++binding)
-    buf_.bindVertexBuffers(binding, vertices.buffer_,
-                           vertices.bind_offsets_[binding]);
-  buf_.bindIndexBuffer(vertices.buffer_, vertices.index_offset_,
-                       vertices.index_type_);
-  buf_.drawIndexed(vertices.count_, /*instanceCount=*/1, /*firstIndex=*/0,
-                   /*vertexOffset=*/0,
-                   /*firstInstance=*/0);
+  for (uint32_t mesh = 0; mesh < gltf.meshCount(); ++mesh) {
+    buf_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
+                            /*firstSet=*/0, descriptorPool.descriptorSet_,
+                            {gltf.meshUniformOffset(mesh)});
+    for (const auto &drawCall : gltf.data_.meshes(mesh).drawcalls()) {
+      for (uint32_t binding = 0; binding < drawCall.bindings_size(); ++binding)
+        buf_.bindVertexBuffers(binding, vertices.buffer_,
+                               drawCall.bindings(binding).offset());
+      buf_.bindIndexBuffer(vertices.buffer_,
+                           static_cast<vk::DeviceSize>(drawCall.indexoffset()),
+                           static_cast<vk::IndexType>(drawCall.indextype()));
+      buf_.drawIndexed(drawCall.indexcount(), /*instanceCount=*/1,
+                       /*firstIndex=*/0,
+                       /*vertexOffset=*/0,
+                       /*firstInstance=*/0);
+    }
+  }
   buf_.endRenderPass();
   buf_.end();
 }

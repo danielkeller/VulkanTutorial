@@ -23,7 +23,7 @@ message Node {
   repeated float rotation = 4 [packed = true];
   repeated float scale = 5 [packed = true];
   repeated float matrix = 6 [packed = true];
-  optional uint64 mesh = 7;
+  optional uint32 mesh = 7;
 }
 
 message Buffer {
@@ -50,7 +50,7 @@ enum ComponentType {
 //  BYTE = 5120;
 //  UNSIGNED_BYTE = 5121;
 //  SHORT = 5122;
-//  UNSIGNED_SHORT = 5123;
+  UNSIGNED_SHORT = 5123;
   UNSIGNED_INT = 5125;
   FLOAT = 5126;
 }
@@ -72,17 +72,17 @@ message Accessor {
   optional ComponentType componentType = 3;
   optional Type type = 4;
   optional uint32 count = 5;
-  repeated double min = 6 [packed = true];
-  repeated double max = 7 [packed = true];
+  // repeated double min = 6 [packed = true];
+  // repeated double max = 7 [packed = true];
 }
 
 message Primitive {
   message Attributes {
-    optional uint32 UNKNOWN_ATTRIBUTE = 1;
-    optional uint32 POSITION = 2;
-    optional uint32 NORMAL = 3;
-    optional uint32 TANGENT = 4;
-    optional uint32 TEXCOORD_0 = 5;
+    // Field number = shader location
+    optional uint32 POSITION = 1;
+    optional uint32 NORMAL = 2;
+    optional uint32 TANGENT = 3;
+    optional uint32 TEXCOORD_0 = 4;
   }
   optional Attributes attributes = 1;
   optional uint32 indices = 2;
@@ -94,9 +94,59 @@ message Primitive {
   optional Mode mode = 4 [default = TRIANGLES];
 }
 
+enum Format {
+  FORMAT_UNDEFINED = 0;
+  FORMAT_R16_UINT = 74;
+  FORMAT_R16G16_UINT = 81;
+  FORMAT_R16G16B16_UINT = 88;
+  FORMAT_R16G16B16A16_UINT = 95;
+  FORMAT_R32_UINT = 98;
+  FORMAT_R32_SFLOAT = 100;
+  FORMAT_R32G32_UINT = 101;
+  FORMAT_R32G32_SFLOAT = 103;
+  FORMAT_R32G32B32_UINT = 104;
+  FORMAT_R32G32B32_SFLOAT = 106;
+  FORMAT_R32G32B32A32_UINT = 107;
+  FORMAT_R32G32B32A32_SFLOAT = 109;
+}
+enum IndexType {
+  INDEX_TYPE_UINT16 = 0;
+  INDEX_TYPE_UINT32 = 1;
+}
+
+message PipelineAttribute {
+  optional Format format = 1;
+  optional uint32 offset = 2;
+  optional uint32 location = 3;
+}
+
+message PipelineBinding {
+  optional uint32 stride = 1;
+  repeated uint32 attributes = 2;
+}
+
+message Pipeline {
+  repeated uint32 bindings = 1;
+}
+
+message DrawCall {
+  optional uint32 pipeline = 1;
+  message DrawBinding {
+    optional uint32 buffer = 1;
+    optional uint64 offset = 2;
+  }
+  repeated DrawBinding bindings = 2;
+  optional uint32 indexBuffer = 3;
+  optional uint64 indexOffset = 4;
+  optional IndexType indexType = 5;
+  optional uint32 indexCount = 6;
+  optional uint32 material = 7;
+}
+
 message Mesh {
   optional string name = 1;
   repeated Primitive primitives = 2;
+  repeated DrawCall drawCalls = 3;
 }
 
 message Image {
@@ -174,13 +224,17 @@ message Gltf {
   repeated Scene scenes = 3;
   repeated Node nodes = 4;
   
-  repeated Mesh meshes = 5;
-  repeated Accessor accessors = 6;
-  repeated BufferView bufferViews = 7;
-  repeated Buffer buffers = 8;
+  repeated PipelineAttribute attributes = 5;
+  repeated PipelineBinding bindings = 6;
+  repeated Pipeline pipelines = 7;
   
-  repeated Material materials = 9;
-  repeated Texture textures = 10;
-  repeated Sampler samplers = 11;
-  repeated Image images = 12;
+  repeated Mesh meshes = 8;
+  repeated Accessor accessors = 9;
+  repeated BufferView bufferViews = 10;
+  repeated Buffer buffers = 11;
+  
+  repeated Material materials = 12;
+  repeated Texture textures = 13;
+  repeated Sampler samplers = 14;
+  repeated Image images = 15;
 }

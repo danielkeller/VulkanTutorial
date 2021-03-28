@@ -16,8 +16,8 @@ void mainApp() {
   RenderPass renderPass;
   FpsCount fpsCount;
 
-  Gltf engine("models/2CylinderEngine/2CylinderEngine.gltf");
-  
+  // Gltf engine("models/2CylinderEngine/2CylinderEngine.gltf");
+
   Gltf gltffile("models/viking_room/scene.gltf");
 
   Pipeline pipeline1(gltffile);
@@ -57,7 +57,8 @@ void mainApp() {
       vk::PipelineStageFlags waitDestStage(
           vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
-      CommandBuffer commandBuffer1(pipeline1, descriptorPool1, vertexBuffers1);
+      CommandBuffer commandBuffer1(pipeline1, descriptorPool1, vertexBuffers1,
+                                   gltffile);
       vk::Semaphore renderFinishedSemaphore =
           gRenderFinishedSemaphores[gSwapchainCurrentImage];
       vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,

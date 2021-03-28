@@ -20,14 +20,18 @@ struct Gltf {
 
   mutable std::vector<vk::VertexInputBindingDescription> bindings_;
   mutable std::vector<vk::VertexInputAttributeDescription> attributes_;
-  vk::PipelineVertexInputStateCreateInfo vertexInput() const;
+  uint32_t pipelinesCount() const { return data_.pipelines_size(); }
+  vk::PipelineVertexInputStateCreateInfo pipelineInfo(uint32_t i) const;
+  
   vk::DeviceSize bufferSize() const;
   void readBuffers(char* output) const;
+  vk::DeviceSize uniformsSize() const;
   void readUniforms(char* output) const;
-  vk::IndexType indexType() const;
-  vk::DeviceSize indexOffset() const;
-  uint32_t primitiveCount() const;
-  std::vector<vk::DeviceSize> bindOffsets() const;
+  uint32_t meshCount() const {return data_.meshes_size();}
+  uint32_t meshUniformOffset(uint32_t mesh) const;
+  
+  void recordCommands(vk::CommandBuffer cmd, vk::Buffer buffer);
+
   Pixels getDiffuseImage() const;
 };
 
