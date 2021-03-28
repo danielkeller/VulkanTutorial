@@ -317,19 +317,19 @@ CommandPool::~CommandPool() {
 }
 
 glm::mat4 getCamera() {
-  //  static auto start = std::chrono::high_resolution_clock::now();
-  //  auto now = std::chrono::high_resolution_clock::now();
-  //  std::chrono::duration<float> spinTime =
-  //      (now - start) % std::chrono::seconds(4);
+  static auto start = std::chrono::high_resolution_clock::now();
+  auto now = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float> spinTime =
+      (now - start) % std::chrono::seconds(4);
   return glm::perspective(
              /*fovy=*/glm::radians(45.f),
              gSwapchainExtent.width / (float)gSwapchainExtent.height,
-             /*znear=*/0.1f, /*zfar=*/100.f) *
-         glm::lookAt(/*eye=*/glm::vec3(30.f, 30.f, 30.f),
+             /*znear=*/0.1f, /*zfar=*/1000.f) *
+         glm::lookAt(/*eye=*/glm::vec3(300.f, 300.f, 300.f),
                      /*center=*/glm::vec3(0.f, 5.f, 0.f),
-                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));  // *
-  //         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-  //                     glm::vec3(0.f, 1.f, 0.f));
+                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f)) *
+         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+                     glm::vec3(0.f, 1.f, 0.f));
 }
 
 CommandBuffer::CommandBuffer(const Pipeline &pipeline,

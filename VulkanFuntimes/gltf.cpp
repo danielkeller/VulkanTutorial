@@ -162,43 +162,44 @@ void Gltf::readBuffers(char* output) const {
 vk::DeviceSize Gltf::uniformsSize() const {
   return data_.meshes_size() * uniformSize<glm::mat4>();
 }
+
 void Gltf::readUniforms(char* output) const {
-  // Find the one mesh
-  std::vector<uint32_t> nodes;
-  nodes.push_back(data_.scenes(data_.scene()).nodes(0));
-  while (data_.nodes(nodes.back()).children_size())
-    nodes.push_back(data_.nodes(nodes.back()).children(0));
-  while (true) {
-    if (data_.nodes(nodes.back()).has_mesh()) {
-      // Apply transforms left (last) to right (first)
-      glm::mat4 result(1.);
-      for (uint32_t node : nodes) {
-        const gltf::Node data = data_.nodes(node);
-        if (data.matrix_size() == 16)
-          result *= glm::make_mat4(data.matrix().data());
-        if (data.translation_size() == 3)
-          result =
-              glm::translate(result, glm::make_vec3(data.translation().data()));
-        if (data.rotation_size() == 4)
-          result *= glm::mat4(glm::make_quat(data.rotation().data()));
-        if (data.scale_size() == 3)
-          result = glm::scale(result, glm::make_vec3(data.scale().data()));
+  for (uint32_t root : data_.scenes(data_.scene()).nodes()) {
+    std::vector<uint32_t> nodes = {root};
+    while (data_.nodes(nodes.back()).children_size())
+      nodes.push_back(data_.nodes(nodes.back()).children(0));
+    while (true) {
+      if (data_.nodes(nodes.back()).has_mesh()) {
+        // Apply transforms left (last) to right (first)
+        glm::mat4 result(1.);
+        for (uint32_t node : nodes) {
+          const gltf::Node data = data_.nodes(node);
+          if (data.matrix_size() == 16)
+            result *= glm::make_mat4(data.matrix().data());
+          if (data.translation_size() == 3)
+            result = glm::translate(result,
+                                    glm::make_vec3(data.translation().data()));
+          if (data.rotation_size() == 4)
+            result *= glm::mat4(glm::make_quat(data.rotation().data()));
+          if (data.scale_size() == 3)
+            result = glm::scale(result, glm::make_vec3(data.scale().data()));
+        }
+
+        size_t offset = meshUniformOffset(data_.nodes(nodes.back()).mesh());
+        std::copy_n((char*)&result, sizeof(glm::mat4), output + offset);
       }
 
-      size_t offset = meshUniformOffset(data_.nodes(nodes.back()).mesh());
-      std::copy_n((char*)&result, sizeof(glm::mat4), output + offset);
-    }
+      uint32_t prev = nodes.back();
+      nodes.pop_back();
+      if (nodes.empty()) break;  // End of tree
 
-    uint32_t prev = nodes.back();
-    nodes.pop_back();
-    if (nodes.empty()) return;  // No mesh
-
-    auto siblings = data_.nodes(nodes.back()).children();
-    auto it = std::find(siblings.begin(), siblings.end(), prev) + 1;
-    if (it != siblings.end()) {
-      nodes.push_back(*it);
-      while (data_.nodes(nodes.back()).children_size())
-        nodes.push_back(data_.nodes(nodes.back()).children(0));
+      auto siblings = data_.nodes(nodes.back()).children();
+      auto it = std::find(siblings.begin(), siblings.end(), prev) + 1;
+      if (it != siblings.end()) {
+        nodes.push_back(*it);
+        while (data_.nodes(nodes.back()).children_size())
+          nodes.push_back(data_.nodes(nodes.back()).children(0));
+      }
     }
   }
 }
@@ -210,21 +211,24 @@ uint32_t Gltf::meshUniformOffset(uint32_t mesh) const {
 Pixels Gltf::getDiffuseImage() const {
   const gltf::Primitive& primitive = data_.meshes(0).primitives(0);
   const gltf::Material& material = data_.materials(primitive.material());
+  if (!material.pbrmetallicroughness().has_basecolortexture()) {
+    char* data = (char*)malloc(4);
+    *(uint32_t*)data = 0xFFFFFFFF;
+    return Pixels(1, 1, (unsigned char*)data);
+  }
+
   const gltf::Texture& texture = data_.textures(
       material.pbrmetallicroughness().basecolortexture().index());
   const gltf::Image& image = data_.images(texture.source());
   std::filesystem::path path = directory_ / image.uri();
 
-  Pixels result;
   int width, height, channels;
-  result.data_ =
+  unsigned char* data =
       stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-  result.width_ = width;
-  result.height_ = height;
-  if (!result.data_)
+  if (!data)
     throw std::runtime_error(std::string("stbi_load: ") +
                              stbi_failure_reason());
-  return result;
+  return Pixels(width, height, data);
 }
 
 Pixels::~Pixels() { stbi_image_free(data_); }

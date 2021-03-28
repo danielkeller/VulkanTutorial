@@ -6,6 +6,7 @@
 #include <filesystem>
 
 struct Pixels {
+  Pixels(int w, int h, unsigned char* d) : width_(w), height_(h), data_(d) {}
   uint32_t width_, height_;
   unsigned char* data_;
   size_t size() const { return width_ * height_ * 4; }
@@ -22,14 +23,14 @@ struct Gltf {
   mutable std::vector<vk::VertexInputAttributeDescription> attributes_;
   uint32_t pipelinesCount() const { return data_.pipelines_size(); }
   vk::PipelineVertexInputStateCreateInfo pipelineInfo(uint32_t i) const;
-  
+
   vk::DeviceSize bufferSize() const;
   void readBuffers(char* output) const;
   vk::DeviceSize uniformsSize() const;
   void readUniforms(char* output) const;
-  uint32_t meshCount() const {return data_.meshes_size();}
+  uint32_t meshCount() const { return data_.meshes_size(); }
   uint32_t meshUniformOffset(uint32_t mesh) const;
-  
+
   void recordCommands(vk::CommandBuffer cmd, vk::Buffer buffer);
 
   Pixels getDiffuseImage() const;
