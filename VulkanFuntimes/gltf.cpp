@@ -74,7 +74,7 @@ Gltf::Gltf(std::filesystem::path path) {
       const auto& attr = prim.attributes();
 
       gltf::Pipeline pipeline;
-      gltf::DrawCall* drawCall = mesh.add_drawcalls();
+      gltf::DrawCall* drawCall = mesh.add_draw_calls();
 
       auto* refl = attr.GetReflection();
       auto* desc = attr.GetDescriptor();
@@ -85,25 +85,25 @@ Gltf::Gltf(std::filesystem::path path) {
         const gltf::Accessor& accessor =
             data_.accessors(refl->GetUInt32(attr, field));
         const gltf::BufferView& bufferview =
-            data_.bufferviews(accessor.bufferview());
+            data_.buffer_views(accessor.buffer_view());
 
         gltf::PipelineAttribute attrData;
         attrData.set_format(
-            vulkanFormat(accessor.type(), accessor.componenttype()));
+            vulkanFormat(accessor.type(), accessor.component_type()));
         attrData.set_location(field->number());
         uint32_t attrIndex =
             setFieldInsert(data_.mutable_attributes(), attrData);
 
         gltf::PipelineBinding binding;
         binding.add_attributes(attrIndex);
-        binding.set_stride(bufferview.bytestride());
+        binding.set_stride(bufferview.byte_stride());
         uint32_t bindIndex = setFieldInsert(data_.mutable_bindings(), binding);
 
         pipeline.add_bindings(bindIndex);
 
         gltf::DrawCall::DrawBinding* drawBind = drawCall->add_bindings();
         drawBind->set_buffer(bufferview.buffer());
-        drawBind->set_offset(accessor.byteoffset() + bufferview.byteoffset());
+        drawBind->set_offset(accessor.byte_offset() + bufferview.byte_offset());
       }
 
       uint32_t pipelineIndex =
@@ -112,14 +112,14 @@ Gltf::Gltf(std::filesystem::path path) {
 
       const gltf::Accessor& accessor = data_.accessors(prim.indices());
       const gltf::BufferView& bufferview =
-          data_.bufferviews(accessor.bufferview());
-      drawCall->set_indexbuffer(bufferview.buffer());
-      drawCall->set_indextype(vulkanIndexType(accessor.componenttype()));
-      drawCall->set_indexoffset(accessor.byteoffset() +
-                                bufferview.byteoffset());
-      drawCall->set_indexcount(accessor.count());
+          data_.buffer_views(accessor.buffer_view());
+      drawCall->set_index_buffer(bufferview.buffer());
+      drawCall->set_index_type(vulkanIndexType(accessor.component_type()));
+      drawCall->set_index_offset(accessor.byte_offset() +
+                                bufferview.byte_offset());
+      drawCall->set_index_count(accessor.count());
       drawCall->set_material(prim.material());
-      if (bufferview.bytestride() > 0)
+      if (bufferview.byte_stride() > 0)
         throw std::runtime_error("Vulkan indices cannot have strides");
     }
   }
@@ -211,14 +211,14 @@ uint32_t Gltf::meshUniformOffset(uint32_t mesh) const {
 Pixels Gltf::getDiffuseImage() const {
   const gltf::Primitive& primitive = data_.meshes(0).primitives(0);
   const gltf::Material& material = data_.materials(primitive.material());
-  if (!material.pbrmetallicroughness().has_basecolortexture()) {
+  if (!material.pbr_metallic_roughness().has_base_color_texture()) {
     char* data = (char*)malloc(4);
     *(uint32_t*)data = 0xFFFFFFFF;
     return Pixels(1, 1, (unsigned char*)data);
   }
 
   const gltf::Texture& texture = data_.textures(
-      material.pbrmetallicroughness().basecolortexture().index());
+      material.pbr_metallic_roughness().base_color_texture().index());
   const gltf::Image& image = data_.images(texture.source());
   std::filesystem::path path = directory_ / image.uri();
 

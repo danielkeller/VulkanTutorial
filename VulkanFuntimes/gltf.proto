@@ -39,9 +39,9 @@ enum BufferTarget {
 
 message BufferView {
   optional uint32 buffer = 1;
-  optional uint64 byteLength = 2;
-  optional uint64 byteOffset = 3;
-  optional uint32 byteStride = 4;
+  optional uint64 byte_length = 2;
+  optional uint64 byte_offset = 3;
+  optional uint32 byte_stride = 4;
   optional BufferTarget target = 5;
 }
 
@@ -67,9 +67,9 @@ enum Type {
 }
 
 message Accessor {
-  optional uint32 bufferView = 1;
-  optional uint32 byteOffset = 2;
-  optional ComponentType componentType = 3;
+  optional uint32 buffer_view = 1;
+  optional uint32 byte_offset = 2;
+  optional ComponentType component_type = 3;
   optional Type type = 4;
   optional uint32 count = 5;
   // repeated double min = 6 [packed = true];
@@ -136,24 +136,24 @@ message DrawCall {
     optional uint64 offset = 2;
   }
   repeated DrawBinding bindings = 2;
-  optional uint32 indexBuffer = 3;
-  optional uint64 indexOffset = 4;
-  optional IndexType indexType = 5;
-  optional uint32 indexCount = 6;
+  optional uint32 index_buffer = 3;
+  optional uint64 index_offset = 4;
+  optional IndexType index_type = 5;
+  optional uint32 index_count = 6;
   optional uint32 material = 7;
 }
 
 message Mesh {
   optional string name = 1;
   repeated Primitive primitives = 2;
-  repeated DrawCall drawCalls = 3;
+  repeated DrawCall draw_calls = 3;
 }
 
 message Image {
   optional string name = 1;
   optional string uri = 2;
-  optional uint32 bufferView = 3;
-  optional string mimeType = 4;
+  optional uint32 buffer_view = 3;
+  optional string mime_type = 4;
 }
 
 message Sampler {
@@ -190,32 +190,32 @@ message TextureInfo {
 
 message NormalTextureInfo {
   optional uint32 index = 1;
-  optional uint32 texCoord = 2;
+  optional uint32 tex_coord = 2;
   optional float scale = 3 [default = 1];
 }
 
 message OcclusionTextureInfo {
   optional uint32 index = 1;
-  optional uint32 texCoord = 2;
+  optional uint32 tex_coord = 2;
   optional float strength = 3 [default = 1];
 }
 
 message PbrMetallicRoughness {
-  optional TextureInfo baseColorTexture = 1;
-  optional TextureInfo metallicRoughnessTexture = 2;
-  repeated float baseColorFactor = 3 [packed = true];
-  optional float metallicFactor = 4 [default = 1];
-  optional float roughnessFactor = 5 [default = 1];
+  optional TextureInfo base_color_texture = 1;
+  optional TextureInfo metallic_roughness_texture = 2;
+  repeated float base_color_factor = 3 [packed = true];
+  optional float metallic_factor = 4 [default = 1];
+  optional float roughness_factor = 5 [default = 1];
 }
 
 message Material {
   optional string name = 1;
-  optional PbrMetallicRoughness pbrMetallicRoughness = 2;
-  optional NormalTextureInfo normalTexture = 3;
-  optional OcclusionTextureInfo occlusionTexture = 4;
-  optional TextureInfo emissiveTexture = 5;
-  repeated float emissiveFactor = 6 [packed = true];
-  optional bool doubleSided = 7;
+  optional PbrMetallicRoughness pbr_metallic_roughness = 2;
+  optional NormalTextureInfo normal_texture = 3;
+  optional OcclusionTextureInfo occlusion_texture = 4;
+  optional TextureInfo emissive_texture = 5;
+  repeated float emissive_factor = 6 [packed = true];
+  optional bool double_sided = 7;
 }
 
 message Gltf {
@@ -230,7 +230,7 @@ message Gltf {
   
   repeated Mesh meshes = 8;
   repeated Accessor accessors = 9;
-  repeated BufferView bufferViews = 10;
+  repeated BufferView buffer_views = 10;
   repeated Buffer buffers = 11;
   
   repeated Material materials = 12;

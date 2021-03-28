@@ -358,14 +358,14 @@ CommandBuffer::CommandBuffer(const Pipeline &pipeline,
     buf_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
                             /*firstSet=*/0, descriptorPool.descriptorSet_,
                             {gltf.meshUniformOffset(mesh)});
-    for (const auto &drawCall : gltf.data_.meshes(mesh).drawcalls()) {
+    for (const auto &drawCall : gltf.data_.meshes(mesh).draw_calls()) {
       for (uint32_t binding = 0; binding < drawCall.bindings_size(); ++binding)
         buf_.bindVertexBuffers(binding, vertices.buffer_,
                                drawCall.bindings(binding).offset());
       buf_.bindIndexBuffer(vertices.buffer_,
-                           static_cast<vk::DeviceSize>(drawCall.indexoffset()),
-                           static_cast<vk::IndexType>(drawCall.indextype()));
-      buf_.drawIndexed(drawCall.indexcount(), /*instanceCount=*/1,
+                           static_cast<vk::DeviceSize>(drawCall.index_offset()),
+                           static_cast<vk::IndexType>(drawCall.index_type()));
+      buf_.drawIndexed(drawCall.index_count(), /*instanceCount=*/1,
                        /*firstIndex=*/0,
                        /*vertexOffset=*/0,
                        /*firstInstance=*/0);
