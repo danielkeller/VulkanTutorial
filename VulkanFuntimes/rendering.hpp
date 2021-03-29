@@ -20,6 +20,8 @@ struct TransferCommandPool {
 };
 struct TransferCommandBuffer {
   TransferCommandBuffer();
+  void copy(vk::Buffer from, vk::Buffer to, vk::DeviceSize size,
+            vk::PipelineStageFlags dstStage, vk::AccessFlags dstAccess);
   ~TransferCommandBuffer();
   vk::CommandBuffer cmd_;
 };
@@ -54,17 +56,18 @@ struct Textures {
   ~Textures();
 };
 
-struct UniformBuffers {
-  vk::DeviceMemory memory_;
-  char* mapping_;
-  UniformBuffers(const Gltf& gltf);
-  ~UniformBuffers();
-};
-
 struct DescriptorPool {
   vk::DescriptorPool pool_;
   vk::DescriptorSet set_;
-  DescriptorPool(vk::DescriptorSetLayout layout, const Textures& textures, const Gltf &gltf);
+  vk::DeviceMemory memory_;
+  StagingBuffer staging_buffer_;
+  vk::Buffer scene_;
+  vk::DeviceMemory shared_memory_;
+  vk::Buffer camera_;
+  char* mapping_;
+  DescriptorPool(vk::DescriptorSetLayout layout, const Textures& textures,
+                 const Gltf& gltf);
+  void updateCamera();
   ~DescriptorPool();
 };
 
@@ -77,8 +80,7 @@ struct CommandPool {
 struct CommandBuffer {
   vk::CommandBuffer buf_;
   CommandBuffer(const Pipeline& pipeline, const DescriptorPool& descriptorPool,
-                const VertexBuffers& vertices,
-                const Gltf& gltf);
+                const VertexBuffers& vertices, const Gltf& gltf);
 };
 
 #endif /* rendering_hpp */

@@ -60,23 +60,24 @@ Pipeline::Pipeline(const Gltf &model) {
   sampler_ = gDevice.createSampler(samplerCreate);
 
   std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
-      {/*binding=*/0, vk::DescriptorType::eUniformBufferDynamic,
+      {/*binding=*/0, vk::DescriptorType::eUniformBuffer,
        /*descriptorCount=*/1, vk::ShaderStageFlagBits::eVertex,
        /*immutableSamplers=*/nullptr},
-      {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
+      {/*binding=*/1, vk::DescriptorType::eUniformBufferDynamic,
+       /*descriptorCount=*/1, vk::ShaderStageFlagBits::eVertex,
+       /*immutableSamplers=*/nullptr},
+      {/*binding=*/2, vk::DescriptorType::eCombinedImageSampler,
        vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/sampler_},
-      {/*binding=*/2, vk::DescriptorType::eUniformBufferDynamic,
+      {/*binding=*/3, vk::DescriptorType::eUniformBufferDynamic,
        /*descriptorCount=*/1, vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/nullptr},
   };
   descriptorSetLayout_ =
       gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
-  vk::PushConstantRange pushConstants(vk::ShaderStageFlagBits::eVertex,
-                                      /*offset=*/0, sizeof(glm::mat4));
 
   layout_ = gDevice.createPipelineLayout(
-      {/*flags=*/{}, descriptorSetLayout_, pushConstants});
+      {/*flags=*/{}, descriptorSetLayout_, /*pushConstants=*/{}});
 
   vk::ShaderModule vert = readShader("triangle.vert");
   vk::ShaderModule frag = readShader("test.frag");
@@ -125,6 +126,21 @@ TransferCommandBuffer::TransferCommandBuffer() {
   cmd_.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 }
 
+void TransferCommandBuffer::copy(vk::Buffer from, vk::Buffer to,
+                                 vk::DeviceSize size,
+                                 vk::PipelineStageFlags dstStage,
+                                 vk::AccessFlags dstAccess) {
+  cmd_.copyBuffer(from, to, vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
+
+  vk::BufferMemoryBarrier barrier(vk::AccessFlagBits::eTransferWrite, dstAccess,
+                                  gGraphicsQueueFamilyIndex,
+                                  gGraphicsQueueFamilyIndex, to,
+                                  /*offset=*/0, size);
+  cmd_.pipelineBarrier(
+      /*srcStage=*/vk::PipelineStageFlagBits::eTransfer, dstStage,
+      /*dependencyFlags=*/{}, {}, barrier, {});
+}
+
 TransferCommandBuffer::~TransferCommandBuffer() {
   cmd_.end();
   vk::SubmitInfo submit;
@@ -170,18 +186,10 @@ VertexBuffers::VertexBuffers(const Gltf &model) {
   gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
 
   TransferCommandBuffer transfer;
-  transfer.cmd_.copyBuffer(staging_buffer_.buffer_, buffer_,
-                           vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
-
-  vk::BufferMemoryBarrier barrier(
-      vk::AccessFlagBits::eTransferWrite,
-      vk::AccessFlagBits::eIndexRead | vk::AccessFlagBits::eVertexAttributeRead,
-      gGraphicsQueueFamilyIndex, gGraphicsQueueFamilyIndex, buffer_,
-      /*offset=*/0, size);
-  transfer.cmd_.pipelineBarrier(
-      /*srcStage=*/vk::PipelineStageFlagBits::eTransfer,
-      /*dstStage=*/vk::PipelineStageFlagBits::eVertexInput,
-      /*dependencyFlags=*/{}, {}, barrier, {});
+  transfer.copy(staging_buffer_.buffer_, buffer_, size,
+                vk::PipelineStageFlagBits::eVertexInput,
+                vk::AccessFlagBits::eIndexRead |
+                    vk::AccessFlagBits::eVertexAttributeRead);
 }
 VertexBuffers::~VertexBuffers() {
   gDevice.destroy(buffer_);
@@ -255,79 +263,76 @@ Textures::~Textures() {
   gDevice.free(memory_);
 }
 
-vk::Buffer gUniformBuffer;
-
-UniformBuffers::UniformBuffers(const Gltf &gltf) {
-  vk::DeviceSize size = gltf.uniformsSize();
-  gUniformBuffer = gDevice.createBuffer(
-      {/*flags=*/{}, size, vk::BufferUsageFlagBits::eUniformBuffer,
-       vk::SharingMode::eExclusive});
-  uint32_t stagingMemoryType =
-      getMemoryFor(gDevice.getBufferMemoryRequirements(gUniformBuffer),
-                   vk::MemoryPropertyFlagBits::eHostVisible |
-                       vk::MemoryPropertyFlagBits::eHostCoherent);
-  memory_ = gDevice.allocateMemory({size, stagingMemoryType});
-
-  gDevice.bindBufferMemory(gUniformBuffer, memory_, /*offset=*/0);
-  mapping_ = (char *)gDevice.mapMemory(memory_, /*offset=*/0, size);
-  gltf.readUniforms(mapping_);
-  // eHostCoherent handles flushes and the later queue submit creates a memory
-  // barrier
-}
-
-UniformBuffers::~UniformBuffers() {
-  gDevice.unmapMemory(memory_);
-  gDevice.destroy(gUniformBuffer);
-  gDevice.free(memory_);
-}
-
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                const Textures &textures, const Gltf &gltf) {
+  vk::DeviceSize sceneSize = gltf.uniformsSize();
+  MappedStagingBuffer mapped = staging_buffer_.map(sceneSize);
+  gltf.readUniforms(mapped.pointer_);
+
+  scene_ = gDevice.createBuffer({/*flags=*/{}, sceneSize,
+                                 vk::BufferUsageFlagBits::eUniformBuffer |
+                                     vk::BufferUsageFlagBits::eTransferDst,
+                                 vk::SharingMode::eExclusive});
+  memory_ = gDevice.allocateMemory(
+      {sceneSize, getMemoryFor(gDevice.getBufferMemoryRequirements(scene_),
+                               vk::MemoryPropertyFlagBits::eDeviceLocal)});
+  gDevice.bindBufferMemory(scene_, memory_, /*offset=*/0);
+
+  TransferCommandBuffer transfer;
+  transfer.copy(staging_buffer_.buffer_, scene_, sceneSize,
+                vk::PipelineStageFlagBits::eVertexShader,
+                vk::AccessFlagBits::eUniformRead);
+
+  vk::DeviceSize cameraSize = sizeof(glm::mat4);
+  camera_ = gDevice.createBuffer({/*flags=*/{}, cameraSize,
+                                  vk::BufferUsageFlagBits::eUniformBuffer,
+                                  vk::SharingMode::eExclusive});
+  shared_memory_ = gDevice.allocateMemory(
+      {cameraSize,
+       getMemoryFor(gDevice.getBufferMemoryRequirements(camera_),
+                    vk::MemoryPropertyFlagBits::eHostVisible |
+                        vk::MemoryPropertyFlagBits::eHostCoherent)});
+  gDevice.bindBufferMemory(camera_, shared_memory_, /*offset=*/0);
+  mapping_ =
+      (char *)gDevice.mapMemory(shared_memory_, /*offset=*/0, cameraSize);
+
   std::initializer_list<vk::DescriptorPoolSize> sizes = {
-      {vk::DescriptorType::eUniformBufferDynamic, /*count=*/1},
-      {vk::DescriptorType::eCombinedImageSampler, /*count=*/1},
-      {vk::DescriptorType::eUniformBufferDynamic, /*count=*/1}};
+      {vk::DescriptorType::eUniformBuffer, /*count=*/1},
+      {vk::DescriptorType::eUniformBufferDynamic, /*count=*/2},
+      {vk::DescriptorType::eCombinedImageSampler, /*count=*/1}};
   pool_ = gDevice.createDescriptorPool({/*flags=*/{}, /*maxSets=*/1, sizes});
 
   set_ = gDevice.allocateDescriptorSets({pool_, layout})[0];
 
   vk::DeviceSize size = uniformSize<glm::mat4>();
-  vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, /*offset=*/0, size);
-  vk::WriteDescriptorSet writeBuffer(set_, /*binding=*/0, /*arrayElement=*/0,
-                                     vk::DescriptorType::eUniformBufferDynamic,
-                                     {}, bufferInfo,
+  vk::DescriptorBufferInfo cameraBuffer(camera_, /*offset=*/0, cameraSize);
+  vk::WriteDescriptorSet writeCamera(set_, /*binding=*/0, /*arrayElement=*/0,
+                                     vk::DescriptorType::eUniformBuffer,
+                                     {}, cameraBuffer,
                                      /*texelBufferView=*/{});
+
+  vk::DescriptorBufferInfo modelBuffer(scene_, /*offset=*/0, size);
+  vk::WriteDescriptorSet writeModel(set_, /*binding=*/1, /*arrayElement=*/0,
+                                    vk::DescriptorType::eUniformBufferDynamic,
+                                    {}, modelBuffer,
+                                    /*texelBufferView=*/{});
 
   vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, textures.imageView_,
                                     vk::ImageLayout::eShaderReadOnlyOptimal);
-  vk::WriteDescriptorSet writeImage(set_, /*binding=*/1, /*arrayElement=*/0,
+  vk::WriteDescriptorSet writeImage(set_, /*binding=*/2, /*arrayElement=*/0,
                                     vk::DescriptorType::eCombinedImageSampler,
                                     imageInfo, {},
                                     /*texelBufferView=*/{});
 
   size = uniformSize<Uniform>();
-  vk::DescriptorBufferInfo bufferInfoMaterial(gUniformBuffer, /*offset=*/0,
-                                              size);
-  vk::WriteDescriptorSet writeBufferMaterial(
-      set_, /*binding=*/2, /*arrayElement=*/0,
-      vk::DescriptorType::eUniformBufferDynamic, {}, bufferInfoMaterial,
+  vk::DescriptorBufferInfo materialBuffer(scene_, /*offset=*/0, size);
+  vk::WriteDescriptorSet writeMaterial(
+      set_, /*binding=*/3, /*arrayElement=*/0,
+      vk::DescriptorType::eUniformBufferDynamic, {}, materialBuffer,
       /*texelBufferView=*/{});
-  gDevice.updateDescriptorSets({writeBuffer, writeImage, writeBufferMaterial},
-                               /*copies=*/{});
-}
-
-DescriptorPool::~DescriptorPool() { gDevice.destroy(pool_); }
-
-std::vector<vk::CommandPool> gCommandPools;
-CommandPool::CommandPool() {
-  for (int i = 0; i < gSwapchainImageCount; ++i)
-    gCommandPools.push_back(
-        gDevice.createCommandPool({vk::CommandPoolCreateFlagBits::eTransient,
-                                   gGraphicsQueueFamilyIndex}));
-}
-CommandPool::~CommandPool() {
-  for (vk::CommandPool pool : gCommandPools) gDevice.destroy(pool);
-  gCommandPools.clear();
+  gDevice.updateDescriptorSets(
+      {writeCamera, writeModel, writeImage, writeMaterial},
+      /*copies=*/{});
 }
 
 glm::mat4 getCamera() {
@@ -344,6 +349,32 @@ glm::mat4 getCamera() {
                      /*camera-y=*/glm::vec3(0.f, -1.f, 0.f)) *
          glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
                      glm::vec3(0.f, 1.f, 0.f));
+}
+
+void DescriptorPool::updateCamera() {
+  glm::mat4 camera = getCamera();
+  std::copy_n((char*)&camera, sizeof(glm::mat4), mapping_);
+}
+
+DescriptorPool::~DescriptorPool() {
+  gDevice.unmapMemory(shared_memory_);
+  gDevice.destroy(camera_);
+  gDevice.free(shared_memory_);
+  gDevice.destroy(scene_);
+  gDevice.free(memory_);
+  gDevice.destroy(pool_);
+}
+
+std::vector<vk::CommandPool> gCommandPools;
+CommandPool::CommandPool() {
+  for (int i = 0; i < gSwapchainImageCount; ++i)
+    gCommandPools.push_back(
+        gDevice.createCommandPool({vk::CommandPoolCreateFlagBits::eTransient,
+                                   gGraphicsQueueFamilyIndex}));
+}
+CommandPool::~CommandPool() {
+  for (vk::CommandPool pool : gCommandPools) gDevice.destroy(pool);
+  gCommandPools.clear();
 }
 
 CommandBuffer::CommandBuffer(const Pipeline &pipeline,
@@ -365,9 +396,6 @@ CommandBuffer::CommandBuffer(const Pipeline &pipeline,
        vk::Rect2D(/*offset=*/{0, 0}, gSwapchainExtent), clearValues},
       vk::SubpassContents::eInline);
   buf_.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
-  glm::mat4 camera = getCamera();
-  buf_.pushConstants(pipeline.layout_, vk::ShaderStageFlagBits::eVertex,
-                     /*offset=*/0, sizeof camera, (void *)&camera);
   for (uint32_t mesh = 0; mesh < gltf.meshCount(); ++mesh) {
     for (const auto &drawCall : gltf.data_.meshes(mesh).draw_calls()) {
       buf_.bindDescriptorSets(

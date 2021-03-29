@@ -1,7 +1,7 @@
 #version 450
 
-layout(binding = 1) uniform sampler2D texSampler;
-layout(binding = 2) uniform Material {
+layout(binding = 2) uniform sampler2D texSampler;
+layout(binding = 3) uniform Material {
   vec4 baseColorFactor;
 } material;
 

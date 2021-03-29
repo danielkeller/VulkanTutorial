@@ -1,7 +1,7 @@
 #version 450
 
-layout(push_constant) uniform Camera { mat4 camera; } camera;
-layout(binding = 0) uniform Model { mat4 model; } model;
+layout(binding = 0) uniform Camera { mat4 camera; } camera;
+layout(binding = 1) uniform Model { mat4 model; } model;
 
 layout(location = 1) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;

@@ -25,7 +25,6 @@ void mainApp() {
   TransferCommandPool transferCommandPool;
   VertexBuffers vertexBuffers1(gltffile);
   Textures textures1(gltffile);
-  UniformBuffers uniformBuffers(gltffile);
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1,
                                  gltffile);
 
@@ -55,13 +54,15 @@ void mainApp() {
         gDevice.resetFences(gInFlightFences[gSwapchainCurrentImage]);
       }
 
-      vk::PipelineStageFlags waitDestStage(
-          vk::PipelineStageFlagBits::eColorAttachmentOutput);
+      descriptorPool1.updateCamera();
 
       CommandBuffer commandBuffer1(pipeline1, descriptorPool1, vertexBuffers1,
                                    gltffile);
+
       vk::Semaphore renderFinishedSemaphore =
           gRenderFinishedSemaphores[gSwapchainCurrentImage];
+      vk::PipelineStageFlags waitDestStage(
+          vk::PipelineStageFlagBits::eColorAttachmentOutput);
       vk::SubmitInfo submit(/*wait=*/imageAvailableSemaphore, waitDestStage,
                             commandBuffer1.buf_,
                             /*signal=*/renderFinishedSemaphore);
