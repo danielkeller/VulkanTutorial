@@ -37,12 +37,16 @@ struct Device {
 uint32_t getMemoryFor(vk::MemoryRequirements memoryRequirements,
                       vk::MemoryPropertyFlags memFlagRequirements);
 
+inline vk::DeviceSize uniformSize(vk::DeviceSize size) {
+  vk::DeviceSize align =
+      gPhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+  return ((size + align - 1) / align) * align;
+}
+
 template <class T>
 vk::DeviceSize uniformSize() {
   static_assert(sizeof(T), "Empty uniform object");
-  vk::DeviceSize align =
-      gPhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-  return ((sizeof(T) + align - 1) / align) * align;
+  return uniformSize(sizeof(T));
 }
 
 extern uint64_t gFrame;

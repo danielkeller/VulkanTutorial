@@ -160,22 +160,18 @@ void Gltf::readBuffers(char* output) const {
 }
 
 vk::DeviceSize Gltf::uniformsSize() const {
-  return data_.meshes_size() * uniformSize<glm::mat4>() +
-         data_.materials_size() * uniformSize<Uniform>();
+  return uniformSize(data_.meshes_size() * sizeof(glm::mat4)) +
+         data_.materials_size() * sizeof(Uniform);
 }
 
-uint32_t Gltf::meshUniformOffset(uint32_t mesh) const {
-  return mesh * static_cast<uint32_t>(uniformSize<glm::mat4>());
-}
-
-uint32_t Gltf::materialUniformOffset(uint32_t material) const {
-  return data_.meshes_size() * static_cast<uint32_t>(uniformSize<glm::mat4>()) +
-         material * static_cast<uint32_t>(uniformSize<Uniform>());
+uint32_t Gltf::materialsUniformOffset() const {
+  return static_cast<uint32_t>(
+      uniformSize(data_.meshes_size() * sizeof(glm::mat4)));
 }
 
 void Gltf::readUniforms(char* output) const {
   std::fill_n(output, uniformsSize(), '\0');
-  
+
   for (uint32_t root : data_.scenes(data_.scene()).nodes()) {
     std::vector<uint32_t> nodes = {root};
     while (data_.nodes(nodes.back()).children_size())
@@ -197,7 +193,7 @@ void Gltf::readUniforms(char* output) const {
             result = glm::scale(result, glm::make_vec3(data.scale().data()));
         }
 
-        size_t offset = meshUniformOffset(data_.nodes(nodes.back()).mesh());
+        size_t offset = sizeof(glm::mat4) * data_.nodes(nodes.back()).mesh();
         std::copy_n((char*)&result, sizeof(glm::mat4), output + offset);
       }
 
@@ -222,7 +218,7 @@ void Gltf::readUniforms(char* output) const {
       u.baseColorFactor_ = glm::make_vec4(
           mat.pbr_metallic_roughness().base_color_factor().data());
 
-    size_t offset = materialUniformOffset(matIndex++);
+    size_t offset = materialsUniformOffset() + sizeof(Uniform) * matIndex++;
     std::copy_n((char*)&u, sizeof u, output + offset);
   }
 }

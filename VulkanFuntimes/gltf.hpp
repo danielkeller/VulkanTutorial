@@ -32,11 +32,10 @@ struct Gltf {
   vk::DeviceSize bufferSize() const;
   void readBuffers(char* output) const;
   vk::DeviceSize uniformsSize() const;
+  uint32_t materialsUniformOffset() const;
   void readUniforms(char* output) const;
   uint32_t meshCount() const { return data_.meshes_size(); }
-  uint32_t meshUniformOffset(uint32_t mesh) const;
   uint32_t materialCount() const { return data_.materials_size(); }
-  uint32_t materialUniformOffset(uint32_t material) const;
   
   Pixels getDiffuseImage() const;
 };

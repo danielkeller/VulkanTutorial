@@ -58,22 +58,25 @@ Pipeline::Pipeline(const Gltf &model) {
   samplerCreate.setMaxAnisotropy(
       gPhysicalDeviceProperties.limits.maxSamplerAnisotropy);
   sampler_ = gDevice.createSampler(samplerCreate);
-
+  
   std::initializer_list<vk::DescriptorSetLayoutBinding> bindings = {
-      {/*binding=*/0, vk::DescriptorType::eUniformBufferDynamic,
+      {/*binding=*/0, vk::DescriptorType::eUniformBuffer,
        /*descriptorCount=*/1, vk::ShaderStageFlagBits::eVertex,
        /*immutableSamplers=*/nullptr},
       {/*binding=*/1, vk::DescriptorType::eCombinedImageSampler,
        vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/sampler_},
-      {/*binding=*/2, vk::DescriptorType::eUniformBufferDynamic,
+      {/*binding=*/2, vk::DescriptorType::eUniformBuffer,
        /*descriptorCount=*/1, vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/nullptr},
   };
   descriptorSetLayout_ =
       gDevice.createDescriptorSetLayout({/*flags=*/{}, bindings});
-  vk::PushConstantRange pushConstants(vk::ShaderStageFlagBits::eVertex,
-                                      /*offset=*/0, sizeof(glm::mat4));
+  std::initializer_list<vk::PushConstantRange> pushConstants = {
+      {vk::ShaderStageFlagBits::eVertex,
+       /*offset=*/16, sizeof(glm::mat4) + 4},
+      {vk::ShaderStageFlagBits::eFragment,
+       /*offset=*/0, 4}};
 
   layout_ = gDevice.createPipelineLayout(
       {/*flags=*/{}, descriptorSetLayout_, pushConstants});
@@ -284,18 +287,17 @@ UniformBuffers::~UniformBuffers() {
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                const Textures &textures, const Gltf &gltf) {
   std::initializer_list<vk::DescriptorPoolSize> sizes = {
-      {vk::DescriptorType::eUniformBufferDynamic, /*count=*/1},
-      {vk::DescriptorType::eCombinedImageSampler, /*count=*/1},
-      {vk::DescriptorType::eUniformBufferDynamic, /*count=*/1}};
+      {vk::DescriptorType::eUniformBuffer, /*count=*/2},
+      {vk::DescriptorType::eCombinedImageSampler, /*count=*/1}};
   pool_ = gDevice.createDescriptorPool({/*flags=*/{}, /*maxSets=*/1, sizes});
 
   set_ = gDevice.allocateDescriptorSets({pool_, layout})[0];
 
-  vk::DeviceSize size = uniformSize<glm::mat4>();
-  vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, /*offset=*/0, size);
+  vk::DescriptorBufferInfo bufferInfo(gUniformBuffer, /*offset=*/0,
+                                      gltf.materialsUniformOffset());
   vk::WriteDescriptorSet writeBuffer(set_, /*binding=*/0, /*arrayElement=*/0,
-                                     vk::DescriptorType::eUniformBufferDynamic,
-                                     {}, bufferInfo,
+                                     vk::DescriptorType::eUniformBuffer, {},
+                                     bufferInfo,
                                      /*texelBufferView=*/{});
 
   vk::DescriptorImageInfo imageInfo(/*sampler=*/nullptr, textures.imageView_,
@@ -305,12 +307,11 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                     imageInfo, {},
                                     /*texelBufferView=*/{});
 
-  size = uniformSize<Uniform>();
-  vk::DescriptorBufferInfo bufferInfoMaterial(gUniformBuffer, /*offset=*/0,
-                                              size);
+  vk::DescriptorBufferInfo bufferInfoMaterial(
+      gUniformBuffer, gltf.materialsUniformOffset(), VK_WHOLE_SIZE);
   vk::WriteDescriptorSet writeBufferMaterial(
       set_, /*binding=*/2, /*arrayElement=*/0,
-      vk::DescriptorType::eUniformBufferDynamic, {}, bufferInfoMaterial,
+      vk::DescriptorType::eUniformBuffer, {}, bufferInfoMaterial,
       /*texelBufferView=*/{});
   gDevice.updateDescriptorSets({writeBuffer, writeImage, writeBufferMaterial},
                                /*copies=*/{});
@@ -367,15 +368,17 @@ CommandBuffer::CommandBuffer(const Pipeline &pipeline,
   buf_.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
   glm::mat4 camera = getCamera();
   buf_.pushConstants(pipeline.layout_, vk::ShaderStageFlagBits::eVertex,
-                     /*offset=*/0, sizeof camera, (void *)&camera);
+                     /*offset=*/16, sizeof camera, (void *)&camera);
+  buf_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.layout_,
+                          /*firstSet=*/0, descriptorPool.set_,
+                          /*dynamicOffsets=*/{});
   for (uint32_t mesh = 0; mesh < gltf.meshCount(); ++mesh) {
     for (const auto &drawCall : gltf.data_.meshes(mesh).draw_calls()) {
-      buf_.bindDescriptorSets(
-          vk::PipelineBindPoint::eGraphics, pipeline.layout_,
-          /*firstSet=*/0, descriptorPool.set_,
-          {gltf.meshUniformOffset(mesh),
-           gltf.materialUniformOffset(drawCall.material())});
-
+      uint32_t material = drawCall.material();
+      buf_.pushConstants(pipeline.layout_, vk::ShaderStageFlagBits::eVertex,
+                         /*offset=*/sizeof camera+16, 4, (void *)&mesh);
+      buf_.pushConstants(pipeline.layout_, vk::ShaderStageFlagBits::eFragment,
+                         /*offset=*/0, 4, (void *)&material);
       for (uint32_t binding = 0; binding < drawCall.bindings_size(); ++binding)
         buf_.bindVertexBuffers(binding, vertices.buffer_,
                                drawCall.bindings(binding).offset());

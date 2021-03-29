@@ -97,7 +97,11 @@ Device::Device() {
   std::initializer_list<vk::DeviceQueueCreateInfo> queues = {
       {/*flags=*/{}, gGraphicsQueueFamilyIndex, priorities}};
 
-  std::vector<const char *> extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  std::vector<const char *> extensions = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+      VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+      VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+  };
   for (const auto &ext : gPhysicalDevice.enumerateDeviceExtensionProperties())
     if (ext.extensionName == std::string_view("VK_KHR_portability_subset"))
       extensions.push_back("VK_KHR_portability_subset");
