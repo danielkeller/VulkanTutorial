@@ -116,7 +116,7 @@ Gltf::Gltf(std::filesystem::path path) {
       drawCall->set_index_buffer(bufferview.buffer());
       drawCall->set_index_type(vulkanIndexType(accessor.component_type()));
       drawCall->set_index_offset(accessor.byte_offset() +
-                                bufferview.byte_offset());
+                                 bufferview.byte_offset());
       drawCall->set_index_count(accessor.count());
       drawCall->set_material(prim.material());
       if (bufferview.byte_stride() > 0)
@@ -160,10 +160,22 @@ void Gltf::readBuffers(char* output) const {
 }
 
 vk::DeviceSize Gltf::uniformsSize() const {
-  return data_.meshes_size() * uniformSize<glm::mat4>();
+  return data_.meshes_size() * uniformSize<glm::mat4>() +
+         data_.materials_size() * uniformSize<Uniform>();
+}
+
+uint32_t Gltf::meshUniformOffset(uint32_t mesh) const {
+  return mesh * static_cast<uint32_t>(uniformSize<glm::mat4>());
+}
+
+uint32_t Gltf::materialUniformOffset(uint32_t material) const {
+  return data_.meshes_size() * static_cast<uint32_t>(uniformSize<glm::mat4>()) +
+         material * static_cast<uint32_t>(uniformSize<Uniform>());
 }
 
 void Gltf::readUniforms(char* output) const {
+  std::fill_n(output, uniformsSize(), '\0');
+  
   for (uint32_t root : data_.scenes(data_.scene()).nodes()) {
     std::vector<uint32_t> nodes = {root};
     while (data_.nodes(nodes.back()).children_size())
@@ -202,10 +214,17 @@ void Gltf::readUniforms(char* output) const {
       }
     }
   }
-}
 
-uint32_t Gltf::meshUniformOffset(uint32_t mesh) const {
-  return mesh * static_cast<uint32_t>(uniformSize<glm::mat4>());
+  uint32_t matIndex = 0;
+  for (const gltf::Material& mat : data_.materials()) {
+    Uniform u;
+    if (mat.pbr_metallic_roughness().base_color_factor_size() == 4)
+      u.baseColorFactor_ = glm::make_vec4(
+          mat.pbr_metallic_roughness().base_color_factor().data());
+
+    size_t offset = materialUniformOffset(matIndex++);
+    std::copy_n((char*)&u, sizeof u, output + offset);
+  }
 }
 
 Pixels Gltf::getDiffuseImage() const {

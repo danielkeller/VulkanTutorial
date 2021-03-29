@@ -63,8 +63,8 @@ struct UniformBuffers {
 
 struct DescriptorPool {
   vk::DescriptorPool pool_;
-  vk::DescriptorSet descriptorSet_;
-  DescriptorPool(vk::DescriptorSetLayout layout, const Textures& textures);
+  vk::DescriptorSet set_;
+  DescriptorPool(vk::DescriptorSetLayout layout, const Textures& textures, const Gltf &gltf);
   ~DescriptorPool();
 };
 

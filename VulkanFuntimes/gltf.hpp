@@ -4,6 +4,11 @@
 #include "gltf.pb.h"
 #include <vulkan/vulkan.hpp>
 #include <filesystem>
+#include "glm/vec4.hpp"
+
+struct Uniform {
+  glm::vec4 baseColorFactor_ = glm::vec4(0);
+};
 
 struct Pixels {
   Pixels(int w, int h, unsigned char* d) : width_(w), height_(h), data_(d) {}
@@ -30,9 +35,9 @@ struct Gltf {
   void readUniforms(char* output) const;
   uint32_t meshCount() const { return data_.meshes_size(); }
   uint32_t meshUniformOffset(uint32_t mesh) const;
-
-  void recordCommands(vk::CommandBuffer cmd, vk::Buffer buffer);
-
+  uint32_t materialCount() const { return data_.materials_size(); }
+  uint32_t materialUniformOffset(uint32_t material) const;
+  
   Pixels getDiffuseImage() const;
 };
 

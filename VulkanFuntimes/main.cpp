@@ -26,7 +26,8 @@ void mainApp() {
   VertexBuffers vertexBuffers1(gltffile);
   Textures textures1(gltffile);
   UniformBuffers uniformBuffers(gltffile);
-  DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1);
+  DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1,
+                                 gltffile);
 
   while (!glfwWindowShouldClose(gWindow)) {
     swapchain.resizeToWindow();
