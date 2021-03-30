@@ -11,6 +11,13 @@
 
 #include "driver.hpp"
 
+uint32_t size(gltf::ComponentType component) {
+  if (component == gltf::UNSIGNED_SHORT) return 2;
+  if (component == gltf::UNSIGNED_INT) return 4;
+  if (component == gltf::FLOAT) return 4;
+  throw std::runtime_error("Unsupported component type");
+}
+
 gltf::Format vulkanFormat(gltf::Type type, gltf::ComponentType component) {
   if (component == gltf::UNSIGNED_SHORT) {
     if (type == gltf::SCALAR) return gltf::FORMAT_R16_UINT;
@@ -96,7 +103,8 @@ Gltf::Gltf(std::filesystem::path path) {
 
         gltf::PipelineBinding binding;
         binding.add_attributes(attrIndex);
-        binding.set_stride(bufferview.byte_stride());
+        uint32_t minStride = accessor.type() * size(accessor.component_type());
+        binding.set_stride(std::max(minStride, bufferview.byte_stride()));
         uint32_t bindIndex = setFieldInsert(data_.mutable_bindings(), binding);
 
         pipeline.add_bindings(bindIndex);
