@@ -16,7 +16,7 @@ void mainApp() {
   RenderPass renderPass;
   FpsCount fpsCount;
 
-  Gltf gltffile("models/2CylinderEngine/2CylinderEngine.gltf");
+  Gltf gltffile("models/DamagedHelmet/DamagedHelmet.gltf");
 
   // Gltf gltffile("models/viking_room/scene.gltf");
 

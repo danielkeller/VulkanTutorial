@@ -197,16 +197,21 @@ VertexBuffers::~VertexBuffers() {
 }
 
 Textures::Textures(const Gltf &model) {
-  Pixels pixels = model.getDiffuseImage();
-  vk::DeviceSize size = pixels.size();
-  vk::Extent3D extent = pixels.extent();
+  std::vector<Pixels> images = model.getImages();
+  if (images.empty()) return;
+  uint32_t layers = static_cast<uint32_t>(images.size());
+  vk::DeviceSize size = images[0].size() * layers;
+  vk::Extent3D extent = images[0].extent();
 
   MappedStagingBuffer mapped = staging_buffer_.map(size);
-  std::copy_n(pixels.data_, size, mapped.pointer_);
+  char *pointer = mapped.pointer_;
+  for (const Pixels &pixels : images)
+    pointer = std::copy_n(pixels.data_.get(), pixels.size(), pointer);
 
+  // FIXME: Normals are not srgb
   image_ = gDevice.createImage(
       {/*flags=*/{}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, extent,
-       /*mipLevels=*/1, /*arrayLayers=*/1, vk::SampleCountFlagBits::e1,
+       /*mipLevels=*/1, layers, vk::SampleCountFlagBits::e1,
        vk::ImageTiling::eOptimal,
        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
        vk::SharingMode::eExclusive, /*queueFamilyIndices=*/{}});
@@ -218,9 +223,8 @@ Textures::Textures(const Gltf &model) {
 
   TransferCommandBuffer transfer;
   vk::ImageSubresourceRange wholeImage(vk::ImageAspectFlagBits::eColor,
-                                       /*baseMip=*/0,
-                                       /*levelCount=*/1, /*baseLayer=*/0,
-                                       /*layerCount=*/1);
+                                       /*baseMip=*/0, /*levelCount=*/1,
+                                       /*baseLayer=*/0, layers);
 
   vk::ImageMemoryBarrier toTransferDst(
       /*srcAccess=*/{}, /*dstAccess=*/vk::AccessFlagBits::eTransferWrite,
@@ -234,7 +238,7 @@ Textures::Textures(const Gltf &model) {
 
   vk::ImageSubresourceLayers wholeImageLayers(vk::ImageAspectFlagBits::eColor,
                                               /*mipLevel=*/0, /*baseLayer=*/0,
-                                              /*layerCount=*/1);
+                                              layers);
   vk::BufferImageCopy copy(/*offset=*/0, /*bufferRowLength=*/0,
                            /*bufferImageHeight=*/0, wholeImageLayers,
                            vk::Offset3D(0, 0, 0), extent);
@@ -252,9 +256,10 @@ Textures::Textures(const Gltf &model) {
       /*dstStage=*/vk::PipelineStageFlagBits::eFragmentShader,
       /*dependencyFlags=*/{}, {}, {}, toShader);
 
-  imageView_ = gDevice.createImageView(
-      {/*flags=*/{}, image_, vk::ImageViewType::e2D, vk::Format::eR8G8B8A8Srgb,
-       /*componentMapping=*/{}, wholeImage});
+  imageView_ = gDevice.createImageView({/*flags=*/{}, image_,
+                                        vk::ImageViewType::e2DArray,
+                                        vk::Format::eR8G8B8A8Srgb,
+                                        /*componentMapping=*/{}, wholeImage});
 }
 
 Textures::~Textures() {
@@ -307,8 +312,8 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
   vk::DeviceSize size = uniformSize<glm::mat4>();
   vk::DescriptorBufferInfo cameraBuffer(camera_, /*offset=*/0, cameraSize);
   vk::WriteDescriptorSet writeCamera(set_, /*binding=*/0, /*arrayElement=*/0,
-                                     vk::DescriptorType::eUniformBuffer,
-                                     {}, cameraBuffer,
+                                     vk::DescriptorType::eUniformBuffer, {},
+                                     cameraBuffer,
                                      /*texelBufferView=*/{});
 
   vk::DescriptorBufferInfo modelBuffer(scene_, /*offset=*/0, size);
@@ -343,17 +348,17 @@ glm::mat4 getCamera() {
   return glm::perspective(
              /*fovy=*/glm::radians(45.f),
              gSwapchainExtent.width / (float)gSwapchainExtent.height,
-             /*znear=*/0.1f, /*zfar=*/5000.f) *
-         glm::lookAt(/*eye=*/glm::vec3(500.f, 500.f, 500.f),
-                     /*center=*/glm::vec3(0.f, 5.f, 0.f),
-                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f)) *
-         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-                     glm::vec3(0.f, 1.f, 0.f));
+             /*znear=*/0.1f, /*zfar=*/6.f) *
+         glm::lookAt(/*eye=*/glm::vec3(2.f, 1.f, 2.f),
+                     /*center=*/glm::vec3(0.f, 0.f, 0.f),
+                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));// *
+//         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+//                     glm::vec3(0.f, 1.f, 0.f));
 }
 
 void DescriptorPool::updateCamera() {
   glm::mat4 camera = getCamera();
-  std::copy_n((char*)&camera, sizeof(glm::mat4), mapping_);
+  std::copy_n((char *)&camera, sizeof(glm::mat4), mapping_);
 }
 
 DescriptorPool::~DescriptorPool() {

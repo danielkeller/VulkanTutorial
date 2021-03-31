@@ -183,7 +183,7 @@ uint32_t Gltf::materialUniformOffset(uint32_t material) const {
 
 void Gltf::readUniforms(char* output) const {
   std::fill_n(output, uniformsSize(), '\0');
-  
+
   for (uint32_t root : data_.scenes(data_.scene()).nodes()) {
     std::vector<uint32_t> nodes = {root};
     while (data_.nodes(nodes.back()).children_size())
@@ -229,33 +229,36 @@ void Gltf::readUniforms(char* output) const {
     if (mat.pbr_metallic_roughness().base_color_factor_size() == 4)
       u.baseColorFactor_ = glm::make_vec4(
           mat.pbr_metallic_roughness().base_color_factor().data());
+    if (mat.pbr_metallic_roughness().has_base_color_texture())
+      u.baseColorTexture =
+          data_
+              .textures(
+                  mat.pbr_metallic_roughness().base_color_texture().index())
+              .source();
+    if (mat.has_normal_texture())
+      u.normalTexture =
+          data_.textures(mat.normal_texture().index()).source();
 
     size_t offset = materialUniformOffset(matIndex++);
     std::copy_n((char*)&u, sizeof u, output + offset);
   }
 }
 
-Pixels Gltf::getDiffuseImage() const {
-  const gltf::Primitive& primitive = data_.meshes(0).primitives(0);
-  const gltf::Material& material = data_.materials(primitive.material());
-  if (!material.pbr_metallic_roughness().has_base_color_texture()) {
-    char* data = (char*)malloc(4);
-    *(uint32_t*)data = 0xFFFFFFFF;
-    return Pixels(1, 1, (unsigned char*)data);
+std::vector<Pixels> Gltf::getImages() const {
+  std::vector<Pixels> result;
+  for (const gltf::Image& image : data_.images()) {
+    std::filesystem::path path = directory_ / image.uri();
+
+    int width, height, channels;
+    unsigned char* data =
+        stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    if (!data)
+      throw std::runtime_error(std::string("stbi_load: ") +
+                               stbi_failure_reason());
+    result.emplace_back(width, height, data);
   }
-
-  const gltf::Texture& texture = data_.textures(
-      material.pbr_metallic_roughness().base_color_texture().index());
-  const gltf::Image& image = data_.images(texture.source());
-  std::filesystem::path path = directory_ / image.uri();
-
-  int width, height, channels;
-  unsigned char* data =
-      stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-  if (!data)
-    throw std::runtime_error(std::string("stbi_load: ") +
-                             stbi_failure_reason());
-  return Pixels(width, height, data);
+  return result;
 }
 
-Pixels::~Pixels() { stbi_image_free(data_); }
+Pixels::Pixels(int w, int h, unsigned char* d)
+    : width_(w), height_(h), data_(d, stbi_image_free) {}

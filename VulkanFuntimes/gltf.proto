@@ -56,6 +56,7 @@ enum ComponentType {
 }
 enum Type {
 //  option allow_alias = true;
+  // Number = num components
   UNKNOWN_TYPE = 0;
   SCALAR = 1;
   VEC2 = 2;
