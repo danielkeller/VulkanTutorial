@@ -1,7 +1,8 @@
 #version 450
 
 layout(binding = 2) uniform sampler2DArray texSampler;
-layout(binding = 3) uniform Material {
+layout(binding = 3) uniform sampler2DArray dataSampler;
+layout(binding = 4) uniform Material {
   vec4 baseColorFactor;
   uint baseColorTexture, normalTexture;
 }
@@ -17,9 +18,9 @@ void main() {
   vec3 baseColor =
       texture(texSampler, vec3(fragTexCoord, material.baseColorTexture)).rgb;
   vec3 normal =
-      texture(texSampler, vec3(fragTexCoord, material.normalTexture)).rgb;
+      texture(dataSampler, vec3(fragTexCoord, material.normalTexture)).rgb;
   //outColor = vec4(fragNormal,1);
   //outColor.rgb = baseColor * max(.1, dot(fragNormal, light));
-  outColor.rgb = vec3(fragTexCoord.r);
+  outColor.rgb = normal;
   outColor.a = 1;
 }

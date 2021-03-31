@@ -49,6 +49,7 @@ struct VertexBuffers {
 
 struct Textures {
   vk::ImageView imageView_;
+  vk::ImageView imageViewData_;
   vk::Image image_;
   vk::DeviceMemory memory_;
   StagingBuffer staging_buffer_;

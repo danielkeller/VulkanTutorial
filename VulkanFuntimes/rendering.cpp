@@ -69,7 +69,10 @@ Pipeline::Pipeline(const Gltf &model) {
       {/*binding=*/2, vk::DescriptorType::eCombinedImageSampler,
        vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/sampler_},
-      {/*binding=*/3, vk::DescriptorType::eUniformBufferDynamic,
+      {/*binding=*/3, vk::DescriptorType::eCombinedImageSampler,
+       vk::ShaderStageFlagBits::eFragment,
+       /*immutableSamplers=*/sampler_},
+      {/*binding=*/4, vk::DescriptorType::eUniformBufferDynamic,
        /*descriptorCount=*/1, vk::ShaderStageFlagBits::eFragment,
        /*immutableSamplers=*/nullptr},
   };
@@ -208,9 +211,9 @@ Textures::Textures(const Gltf &model) {
   for (const Pixels &pixels : images)
     pointer = std::copy_n(pixels.data_.get(), pixels.size(), pointer);
 
-  // FIXME: Normals are not srgb
   image_ = gDevice.createImage(
-      {/*flags=*/{}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, extent,
+      {vk::ImageCreateFlagBits::eMutableFormat, vk::ImageType::e2D,
+       vk::Format::eR8G8B8A8Srgb, extent,
        /*mipLevels=*/1, layers, vk::SampleCountFlagBits::e1,
        vk::ImageTiling::eOptimal,
        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
@@ -260,6 +263,10 @@ Textures::Textures(const Gltf &model) {
                                         vk::ImageViewType::e2DArray,
                                         vk::Format::eR8G8B8A8Srgb,
                                         /*componentMapping=*/{}, wholeImage});
+  imageViewData_ = gDevice.createImageView(
+      {/*flags=*/{}, image_, vk::ImageViewType::e2DArray,
+       vk::Format::eR8G8B8A8Unorm,
+       /*componentMapping=*/{}, wholeImage});
 }
 
 Textures::~Textures() {
@@ -304,7 +311,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
   std::initializer_list<vk::DescriptorPoolSize> sizes = {
       {vk::DescriptorType::eUniformBuffer, /*count=*/1},
       {vk::DescriptorType::eUniformBufferDynamic, /*count=*/2},
-      {vk::DescriptorType::eCombinedImageSampler, /*count=*/1}};
+      {vk::DescriptorType::eCombinedImageSampler, /*count=*/2}};
   pool_ = gDevice.createDescriptorPool({/*flags=*/{}, /*maxSets=*/1, sizes});
 
   set_ = gDevice.allocateDescriptorSets({pool_, layout})[0];
@@ -329,14 +336,21 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                     imageInfo, {},
                                     /*texelBufferView=*/{});
 
+  vk::DescriptorImageInfo dataInfo(/*sampler=*/nullptr, textures.imageViewData_,
+                                   vk::ImageLayout::eShaderReadOnlyOptimal);
+  vk::WriteDescriptorSet writeData(set_, /*binding=*/3, /*arrayElement=*/0,
+                                   vk::DescriptorType::eCombinedImageSampler,
+                                   dataInfo, {},
+                                   /*texelBufferView=*/{});
+
   size = uniformSize<Uniform>();
   vk::DescriptorBufferInfo materialBuffer(scene_, /*offset=*/0, size);
   vk::WriteDescriptorSet writeMaterial(
-      set_, /*binding=*/3, /*arrayElement=*/0,
+      set_, /*binding=*/4, /*arrayElement=*/0,
       vk::DescriptorType::eUniformBufferDynamic, {}, materialBuffer,
       /*texelBufferView=*/{});
   gDevice.updateDescriptorSets(
-      {writeCamera, writeModel, writeImage, writeMaterial},
+      {writeCamera, writeModel, writeImage, writeData, writeMaterial},
       /*copies=*/{});
 }
 
@@ -351,9 +365,9 @@ glm::mat4 getCamera() {
              /*znear=*/0.1f, /*zfar=*/6.f) *
          glm::lookAt(/*eye=*/glm::vec3(2.f, 1.f, 2.f),
                      /*center=*/glm::vec3(0.f, 0.f, 0.f),
-                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));// *
-//         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-//                     glm::vec3(0.f, 1.f, 0.f));
+                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));  // *
+  //         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
+  //                     glm::vec3(0.f, 1.f, 0.f));
 }
 
 void DescriptorPool::updateCamera() {
