@@ -34,6 +34,8 @@
 		3786A256260CEEEA0003ECCF /* gltf.proto in Sources */ = {isa = PBXBuildFile; fileRef = 3786A251260CEBEF0003ECCF /* gltf.proto */; };
 		3786A25B260CF2C80003ECCF /* libprotobuf.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3786A25A260CF2C70003ECCF /* libprotobuf.a */; };
 		3786A25D260CF39A0003ECCF /* models in Resources */ = {isa = PBXBuildFile; fileRef = 3786A25C260CF39A0003ECCF /* models */; };
+		3788D0B22614C58F007D9E0F /* mikktspace.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3788D0B12614C58F007D9E0F /* mikktspace.cpp */; };
+		3788D0B32614C654007D9E0F /* mikktspace.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3788D0B12614C58F007D9E0F /* mikktspace.cpp */; };
 		37BC997E260D2253006CF9C6 /* gltf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37BC997D260D2253006CF9C6 /* gltf.cpp */; };
 		37C4641725FFD9980018E3F8 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
 		37C4642125FFDB190018E3F8 /* libglfw3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642025FFDB190018E3F8 /* libglfw3.a */; };
@@ -148,6 +150,8 @@
 		3786A251260CEBEF0003ECCF /* gltf.proto */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.protobuf; path = gltf.proto; sourceTree = "<group>"; };
 		3786A25A260CF2C70003ECCF /* libprotobuf.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libprotobuf.a; sourceTree = "<group>"; };
 		3786A25C260CF39A0003ECCF /* models */ = {isa = PBXFileReference; lastKnownFileType = folder; path = models; sourceTree = "<group>"; };
+		3788D0B02614C30C007D9E0F /* mikktspace.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = mikktspace.hpp; sourceTree = "<group>"; };
+		3788D0B12614C58F007D9E0F /* mikktspace.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = mikktspace.cpp; sourceTree = "<group>"; };
 		378E7E5426025F9A00013BD7 /* vulkan */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vulkan; sourceTree = "<group>"; };
 		37BC997D260D2253006CF9C6 /* gltf.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = gltf.cpp; sourceTree = "<group>"; };
 		37C4641325FFD9980018E3F8 /* VulkanFuntimes */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VulkanFuntimes; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -237,6 +241,8 @@
 				3786A24F260CEBD40003ECCF /* gltf.hpp */,
 				37BC997D260D2253006CF9C6 /* gltf.cpp */,
 				3786A251260CEBEF0003ECCF /* gltf.proto */,
+				3788D0B02614C30C007D9E0F /* mikktspace.hpp */,
+				3788D0B12614C58F007D9E0F /* mikktspace.cpp */,
 			);
 			path = VulkanFuntimes;
 			sourceTree = "<group>";
@@ -409,6 +415,7 @@
 				3786A218260BB8040003ECCF /* swapchain.hpp in Sources */,
 				3786A219260BB8040003ECCF /* rendering.cpp in Sources */,
 				3786A21A260BB8040003ECCF /* rendering.hpp in Sources */,
+				3788D0B32614C654007D9E0F /* mikktspace.cpp in Sources */,
 				3786A21B260BB8040003ECCF /* stb.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -418,6 +425,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3786A1E92607A6520003ECCF /* rendering.cpp in Sources */,
+				3788D0B22614C58F007D9E0F /* mikktspace.cpp in Sources */,
 				37C4641725FFD9980018E3F8 /* main.cpp in Sources */,
 				3786A252260CEBEF0003ECCF /* gltf.proto in Sources */,
 				3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */,

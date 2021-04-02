@@ -27,8 +27,9 @@ message Node {
 }
 
 message Buffer {
-  optional uint64 byteLength = 1;
-  optional string uri = 2;
+  optional string uri = 1;
+  optional uint64 byte_length = 2;
+  optional uint64 generated_byte_length = 3;
 }
 
 enum BufferTarget {
@@ -69,12 +70,19 @@ enum Type {
 
 message Accessor {
   optional uint32 buffer_view = 1;
-  optional uint32 byte_offset = 2;
+  optional uint64 byte_offset = 2;
   optional ComponentType component_type = 3;
   optional Type type = 4;
   optional uint32 count = 5;
   // repeated double min = 6 [packed = true];
   // repeated double max = 7 [packed = true];
+}
+
+enum ShaderLocation {
+  POSITION = 1;
+  NORMAL = 2;
+  TANGENT = 3;
+  TEXCOORD_0 = 4;
 }
 
 message Primitive {
@@ -118,7 +126,7 @@ enum IndexType {
 message PipelineAttribute {
   optional Format format = 1;
   optional uint32 offset = 2;
-  optional uint32 location = 3;
+  optional ShaderLocation location = 3;
 }
 
 message PipelineBinding {

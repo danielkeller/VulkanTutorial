@@ -10,6 +10,7 @@
 #include "glm/gtx/string_cast.hpp"
 
 #include "driver.hpp"
+#include "mikktspace.hpp"
 
 uint32_t size(gltf::ComponentType component) {
   if (component == gltf::UNSIGNED_SHORT) return 2;
@@ -76,28 +77,49 @@ Gltf::Gltf(std::filesystem::path path) {
     throw std::runtime_error("failed to parse \"" + path.string() +
                              "\": " + parseStatus.message().as_string());
 
+  uint32_t tangentBufferView = data_.buffer_views_size();
+  data_.add_buffer_views()->set_buffer(0);
+
   for (gltf::Mesh& mesh : *data_.mutable_meshes()) {
     for (gltf::Primitive& prim : *mesh.mutable_primitives()) {
-      const auto& attr = prim.attributes();
+      auto* attr = prim.mutable_attributes();
+
+      if (!attr->has_tangent() && attr->has_position() && attr->has_normal() &&
+          attr->has_texcoord_0()) {
+        uint32_t vertexCount = data_.accessors(attr->position()).count();
+        uint64_t tangentLength = vertexCount * sizeof(glm::vec4);
+        uint64_t tangentOffset = data_.buffers(0).generated_byte_length();
+        data_.mutable_buffers(0)->set_generated_byte_length(tangentOffset +
+                                                            tangentLength);
+
+        attr->set_tangent(data_.accessors_size());
+        gltf::Accessor* accessor = data_.add_accessors();
+        accessor->set_component_type(gltf::FLOAT);
+        accessor->set_type(gltf::VEC4);
+        accessor->set_buffer_view(tangentBufferView);
+        accessor->set_byte_offset(data_.buffers(0).byte_length() +
+                                  tangentOffset);
+      }
 
       gltf::Pipeline pipeline;
       gltf::DrawCall* drawCall = mesh.add_draw_calls();
 
-      auto* refl = attr.GetReflection();
-      auto* desc = attr.GetDescriptor();
+      auto* refl = attr->GetReflection();
+      auto* desc = attr->GetDescriptor();
       for (int i = 0; i < desc->field_count(); ++i) {
-        auto field = attr.GetDescriptor()->field(i);
-        if (!refl->HasField(attr, field)) continue;
+        auto field = attr->GetDescriptor()->field(i);
+        if (!refl->HasField(*attr, field)) continue;
 
         const gltf::Accessor& accessor =
-            data_.accessors(refl->GetUInt32(attr, field));
+            data_.accessors(refl->GetUInt32(*attr, field));
         const gltf::BufferView& bufferview =
             data_.buffer_views(accessor.buffer_view());
 
         gltf::PipelineAttribute attrData;
         attrData.set_format(
             vulkanFormat(accessor.type(), accessor.component_type()));
-        attrData.set_location(field->number());
+        attrData.set_location(
+            static_cast<gltf::ShaderLocation>(field->number()));
         uint32_t attrIndex =
             setFieldInsert(data_.mutable_attributes(), attrData);
 
@@ -143,7 +165,7 @@ vk::PipelineVertexInputStateCreateInfo Gltf::pipelineInfo(uint32_t p) const {
     bindings_.push_back({i, binding.stride(), vk::VertexInputRate::eVertex});
     for (uint32_t attr : binding.attributes()) {
       const gltf::PipelineAttribute& info = data_.attributes(attr);
-      attributes_.push_back({info.location(), i,
+      attributes_.push_back({static_cast<uint32_t>(info.location()), i,
                              static_cast<vk::Format>(info.format()),
                              info.offset()});
     }
@@ -153,7 +175,32 @@ vk::PipelineVertexInputStateCreateInfo Gltf::pipelineInfo(uint32_t p) const {
 }
 
 vk::DeviceSize Gltf::bufferSize() const {
-  return data_.buffers(0).bytelength();
+  return data_.buffers(0).byte_length() +
+         data_.buffers(0).generated_byte_length();
+}
+
+template <class T>
+BufferRef<T> getBufferRef(const gltf::Gltf& data, char* ptr,
+                          const gltf::DrawCall& drawCall,
+                          gltf::ShaderLocation attribute, gltf::Format format) {
+  const gltf::Pipeline& pipeline = data.pipelines(drawCall.pipeline());
+  for (uint32_t i = 0; i < pipeline.bindings_size(); ++i) {
+    const gltf::PipelineBinding& binding = data.bindings(pipeline.bindings(i));
+    for (uint32_t attr : binding.attributes()) {
+      const gltf::PipelineAttribute& pipeAttr = data.attributes(attr);
+      if (pipeAttr.location() != attribute) continue;
+      if (pipeAttr.format() != format)
+        throw std::runtime_error(
+            "Unexpected format " + gltf::Format_Name(pipeAttr.format()) +
+            " for " + gltf::ShaderLocation_Name(attribute));
+
+      return BufferRef<T>(
+          ptr + pipeAttr.offset() + drawCall.bindings(i).offset(),
+          binding.stride());
+    }
+  }
+  throw std::runtime_error("Attrribute not found: " +
+                           gltf::ShaderLocation_Name(attribute));
 }
 
 void Gltf::readBuffers(char* output) const {
@@ -163,8 +210,32 @@ void Gltf::readBuffers(char* output) const {
   std::ifstream file(path, std::ios::binary);
   if (!file.is_open())
     throw std::runtime_error("failed to open \"" + path.string() + "\"");
-  file.read(output, buf.bytelength());
-  output += buf.bytelength();
+  file.read(output, buf.byte_length());
+
+  // Generate tangents if needed
+  for (const gltf::Mesh& mesh : data_.meshes()) {
+    for (const gltf::DrawCall& drawCall : mesh.draw_calls()) {
+      auto tangents =
+          getBufferRef<glm::vec4>(data_, output, drawCall, gltf::TANGENT,
+                                  gltf::FORMAT_R32G32B32A32_SFLOAT);
+      // Is it already in the buffer?
+      if (tangents.buffer_ - output < buf.byte_length()) continue;
+
+      auto positions =
+          getBufferRef<glm::vec3>(data_, output, drawCall, gltf::POSITION,
+                                  gltf::FORMAT_R32G32B32_SFLOAT);
+      auto normals = getBufferRef<glm::vec3>(
+          data_, output, drawCall, gltf::NORMAL, gltf::FORMAT_R32G32B32_SFLOAT);
+      auto texCoords =
+          getBufferRef<glm::vec2>(data_, output, drawCall, gltf::TEXCOORD_0,
+                                  gltf::FORMAT_R32G32_SFLOAT);
+      if (drawCall.index_type() != gltf::INDEX_TYPE_UINT16)
+        throw std::runtime_error("32 bit indices not supported");
+      uint16_t* indices = (uint16_t*)(output + drawCall.index_offset());
+      makeTangents(drawCall.index_count(), indices, positions, normals,
+                   texCoords, tangents);
+    }
+  }
 }
 
 vk::DeviceSize Gltf::uniformsSize() const {
@@ -236,8 +307,7 @@ void Gltf::readUniforms(char* output) const {
                   mat.pbr_metallic_roughness().base_color_texture().index())
               .source();
     if (mat.has_normal_texture())
-      u.normalTexture =
-          data_.textures(mat.normal_texture().index()).source();
+      u.normalTexture = data_.textures(mat.normal_texture().index()).source();
 
     size_t offset = materialUniformOffset(matIndex++);
     std::copy_n((char*)&u, sizeof u, output + offset);
@@ -248,13 +318,14 @@ std::vector<Pixels> Gltf::getImages() const {
   std::vector<Pixels> result;
   for (const gltf::Image& image : data_.images()) {
     std::filesystem::path path = directory_ / image.uri();
+    //    std::filesystem::path path = "Textures/checker.png";
 
     int width, height, channels;
     unsigned char* data =
         stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!data)
       throw std::runtime_error(std::string("stbi_load: ") +
-                               stbi_failure_reason());
+                               stbi_failure_reason() + " " + path.string());
     result.emplace_back(width, height, data);
   }
   return result;

@@ -40,7 +40,7 @@ Pipeline::Pipeline(const Gltf &model) {
   vk::PipelineRasterizationStateCreateInfo rasterization(
       /*flags=*/{}, /*depthClampEnable=*/false,
       /*rasterizerDiscardEnable=*/false, vk::PolygonMode::eFill,
-      vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise,
+      vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise,
       /*depthBiasEnable=*/false, {}, {}, {}, /*lineWidth=*/1);
   vk::PipelineDepthStencilStateCreateInfo depthStencil(
       /*flags=*/{}, /*depthTestEnable=*/true, /*depthWriteEnable=*/true,
@@ -271,6 +271,7 @@ Textures::Textures(const Gltf &model) {
 
 Textures::~Textures() {
   gDevice.destroy(imageView_);
+  gDevice.destroy(imageViewData_);
   gDevice.destroy(image_);
   gDevice.free(memory_);
 }
@@ -359,13 +360,16 @@ glm::mat4 getCamera() {
   auto now = std::chrono::high_resolution_clock::now();
   std::chrono::duration<float> spinTime =
       (now - start) % std::chrono::seconds(4);
-  return glm::perspective(
-             /*fovy=*/glm::radians(45.f),
-             gSwapchainExtent.width / (float)gSwapchainExtent.height,
-             /*znear=*/0.1f, /*zfar=*/6.f) *
-         glm::lookAt(/*eye=*/glm::vec3(2.f, 1.f, 2.f),
-                     /*center=*/glm::vec3(0.f, 0.f, 0.f),
-                     /*camera-y=*/glm::vec3(0.f, -1.f, 0.f));  // *
+  glm::mat4 persp = glm::perspective(
+      /*fovy=*/glm::radians(45.f),
+      gSwapchainExtent.width / (float)gSwapchainExtent.height,
+      /*znear=*/0.1f, /*zfar=*/6.f);
+  persp[1][1] *= -1;
+  glm::mat4 eye = glm::lookAt(
+      /*eye=*/glm::vec3(0.5f, 1.f, 3.f),
+      /*center=*/glm::vec3(0.f, 0.f, 0.f),
+      /*camera-y=*/glm::vec3(0.f, 1.f, 0.f));
+  return persp * eye;
   //         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
   //                     glm::vec3(0.f, 1.f, 0.f));
 }
