@@ -363,10 +363,10 @@ glm::mat4 getCamera() {
   glm::mat4 persp = glm::perspective(
       /*fovy=*/glm::radians(45.f),
       gSwapchainExtent.width / (float)gSwapchainExtent.height,
-      /*znear=*/0.1f, /*zfar=*/6.f);
+      /*znear=*/0.1f, /*zfar=*/15.f);
   persp[1][1] *= -1;
   glm::mat4 eye = glm::lookAt(
-      /*eye=*/glm::vec3(0.5f, 1.f, 3.f),
+      /*eye=*/glm::vec3(4.f, 6.f, 10.f),
       /*center=*/glm::vec3(0.f, 0.f, 0.f),
       /*camera-y=*/glm::vec3(0.f, 1.f, 0.f));
   return persp * eye;

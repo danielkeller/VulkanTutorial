@@ -19,16 +19,15 @@ void main() {
   //  outColor = vec4(fragNormal, 1);
   vec3 baseColor =
       texture(texSampler, vec3(fragTexCoord, material.baseColorTexture)).rgb;
+  baseColor = vec3(1);
 
   vec3 binormal = fragTangent.w * cross(fragNormal, fragTangent.xyz);
 
   vec3 normal =
-      texture(dataSampler, vec3(fragTexCoord, material.normalTexture)).rgb*2-1;
-  vec3 worldNormal =
-      normal.x * fragTangent.xyz + normal.y * binormal + normal.z * fragNormal;
-   outColor = vec4(worldNormal.xyz, 1);
-   outColor.rgb = baseColor * max(.1, dot(worldNormal, light));
-//  outColor.rgb = vec3(1) * fragTangent.w;
-//  outColor.rgb = worldNormal;
+      texture(dataSampler, vec3(fragTexCoord, material.normalTexture)).rgb * 2 -
+      1;
+  vec3 worldNormal = normalize(normal.x * fragTangent.xyz +
+                               normal.y * binormal + normal.z * fragNormal);
+  outColor.rgb = baseColor * max(.1, dot(worldNormal, light));
   outColor.a = 1;
 }

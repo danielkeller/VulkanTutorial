@@ -16,7 +16,7 @@ void mainApp() {
   RenderPass renderPass;
   FpsCount fpsCount;
 
-  Gltf gltffile("models/NormalTest/NormalTest.gltf");
+  Gltf gltffile("models/TangentTest/TangentTest.gltf");
 
   // Gltf gltffile("models/viking_room/scene.gltf");
 
