@@ -16,8 +16,8 @@ void mainApp() {
   RenderPass renderPass;
   FpsCount fpsCount;
 
-  Gltf gltffile("models/TangentTest/TangentTest.gltf");
-
+  Gltf gltffile("models/MetalRough/MetalRoughSpheres.gltf");
+//  Gltf gltffile("models/DamagedHelmet/DamagedHelmet.gltf");
   // Gltf gltffile("models/viking_room/scene.gltf");
 
   Pipeline pipeline1(gltffile);

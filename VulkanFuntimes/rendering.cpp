@@ -276,6 +276,10 @@ Textures::~Textures() {
   gDevice.free(memory_);
 }
 
+struct Camera {
+  glm::mat4 eye, proj;
+};
+
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                const Textures &textures, const Gltf &gltf) {
   vk::DeviceSize sceneSize = gltf.uniformsSize();
@@ -296,7 +300,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                 vk::PipelineStageFlagBits::eVertexShader,
                 vk::AccessFlagBits::eUniformRead);
 
-  vk::DeviceSize cameraSize = sizeof(glm::mat4);
+  vk::DeviceSize cameraSize = sizeof(Camera);
   camera_ = gDevice.createBuffer({/*flags=*/{}, cameraSize,
                                   vk::BufferUsageFlagBits::eUniformBuffer,
                                   vk::SharingMode::eExclusive});
@@ -317,7 +321,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
 
   set_ = gDevice.allocateDescriptorSets({pool_, layout})[0];
 
-  vk::DeviceSize size = uniformSize<glm::mat4>();
+  vk::DeviceSize size = uniformSize<Camera>();
   vk::DescriptorBufferInfo cameraBuffer(camera_, /*offset=*/0, cameraSize);
   vk::WriteDescriptorSet writeCamera(set_, /*binding=*/0, /*arrayElement=*/0,
                                      vk::DescriptorType::eUniformBuffer, {},
@@ -355,28 +359,31 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
       /*copies=*/{});
 }
 
-glm::mat4 getCamera() {
+Camera getCamera() {
   static auto start = std::chrono::high_resolution_clock::now();
   auto now = std::chrono::high_resolution_clock::now();
   std::chrono::duration<float> spinTime =
-      (now - start) % std::chrono::seconds(4);
-  glm::mat4 persp = glm::perspective(
+      (now - start) % std::chrono::seconds(8);
+  Camera result;
+  result.proj = glm::perspective(
       /*fovy=*/glm::radians(45.f),
       gSwapchainExtent.width / (float)gSwapchainExtent.height,
-      /*znear=*/0.1f, /*zfar=*/15.f);
-  persp[1][1] *= -1;
-  glm::mat4 eye = glm::lookAt(
-      /*eye=*/glm::vec3(4.f, 6.f, 10.f),
+      /*znear=*/0.1f, /*zfar=*/100.f);
+  result.proj[1][1] *= -1;
+  glm::vec4 eye =
+  glm::vec4(2.f, 1.f, 20.f, 1.f);// *
+//      glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(45.f),
+//                  glm::vec3(0.f, 1.f, 0.f));
+  result.eye = glm::lookAt(
+      /*eye=*/glm::vec3(eye.x, eye.y, eye.z),
       /*center=*/glm::vec3(0.f, 0.f, 0.f),
       /*camera-y=*/glm::vec3(0.f, 1.f, 0.f));
-  return persp * eye;
-  //         glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(90.f),
-  //                     glm::vec3(0.f, 1.f, 0.f));
+  return result;
 }
 
 void DescriptorPool::updateCamera() {
-  glm::mat4 camera = getCamera();
-  std::copy_n((char *)&camera, sizeof(glm::mat4), mapping_);
+  Camera camera = getCamera();
+  std::copy_n((char *)&camera, sizeof(Camera), mapping_);
 }
 
 DescriptorPool::~DescriptorPool() {

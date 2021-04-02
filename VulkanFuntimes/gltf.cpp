@@ -252,6 +252,11 @@ uint32_t Gltf::materialUniformOffset(uint32_t material) const {
          material * static_cast<uint32_t>(uniformSize<Uniform>());
 }
 
+template <class T>
+uint32_t texIndex(const gltf::Gltf& data, const T& info) {
+  return data.textures(info.index()).source();
+}
+
 void Gltf::readUniforms(char* output) const {
   std::fill_n(output, uniformsSize(), '\0');
 
@@ -296,18 +301,17 @@ void Gltf::readUniforms(char* output) const {
 
   uint32_t matIndex = 0;
   for (const gltf::Material& mat : data_.materials()) {
+    const auto& pbr = mat.pbr_metallic_roughness();
     Uniform u;
-    if (mat.pbr_metallic_roughness().base_color_factor_size() == 4)
-      u.baseColorFactor_ = glm::make_vec4(
-          mat.pbr_metallic_roughness().base_color_factor().data());
-    if (mat.pbr_metallic_roughness().has_base_color_texture())
-      u.baseColorTexture =
-          data_
-              .textures(
-                  mat.pbr_metallic_roughness().base_color_texture().index())
-              .source();
+    if (pbr.base_color_factor_size() == 4)
+      u.baseColorFactor_ = glm::make_vec4(pbr.base_color_factor().data());
+    if (pbr.has_base_color_texture())
+      u.baseColorTexture = texIndex(data_, pbr.base_color_texture());
+    if (pbr.has_metallic_roughness_texture())
+      u.metallicRoughnessTexture =
+          texIndex(data_, pbr.metallic_roughness_texture());
     if (mat.has_normal_texture())
-      u.normalTexture = data_.textures(mat.normal_texture().index()).source();
+      u.normalTexture = texIndex(data_, mat.normal_texture());
 
     size_t offset = materialUniformOffset(matIndex++);
     std::copy_n((char*)&u, sizeof u, output + offset);

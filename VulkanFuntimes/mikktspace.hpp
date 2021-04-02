@@ -17,7 +17,7 @@ struct BufferRef<const T> {
   BufferRef(const char* buffer, size_t stride)
       : buffer_(buffer), stride_(stride){};
   BufferRef(const BufferRef<T>& other)
-      : buffer_(other.buffer_), stride_(other.stride_){};
+      : BufferRef(other.buffer_, other.stride_){};
   const T& operator[](size_t i) { return *(T*)(buffer_ + stride_ * i); }
   const char* buffer_;
   size_t stride_;

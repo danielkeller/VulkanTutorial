@@ -7,8 +7,8 @@
 #include "glm/vec4.hpp"
 
 struct Uniform {
-  glm::vec4 baseColorFactor_ = glm::vec4(0);
-  uint32_t baseColorTexture, normalTexture;
+  glm::vec4 baseColorFactor_ = glm::vec4(1);
+  uint32_t baseColorTexture, normalTexture, metallicRoughnessTexture;
 };
 
 struct Pixels {
