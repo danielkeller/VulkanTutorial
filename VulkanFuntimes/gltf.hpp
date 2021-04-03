@@ -4,6 +4,7 @@
 #include "gltf.pb.h"
 #include <vulkan/vulkan.hpp>
 #include <filesystem>
+#include <fstream>
 #include "glm/vec4.hpp"
 
 struct Uniform {
@@ -24,6 +25,8 @@ struct Gltf {
   Gltf(std::filesystem::path path);
   gltf::Gltf data_;
   std::filesystem::path directory_;
+  mutable std::ifstream file_;
+  std::ifstream::pos_type bufferStart_;
 
   mutable std::vector<vk::VertexInputBindingDescription> bindings_;
   mutable std::vector<vk::VertexInputAttributeDescription> attributes_;
@@ -39,6 +42,10 @@ struct Gltf {
   uint32_t meshUniformOffset(uint32_t mesh) const;
   uint32_t materialCount() const { return data_.materials_size(); }
   uint32_t materialUniformOffset(uint32_t material) const;
+  
+private:
+  uint64_t plainDataSize() const;
+  void readJSON(size_t length);
 };
 
 #endif /* gltf_hpp */

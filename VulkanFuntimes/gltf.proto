@@ -29,7 +29,6 @@ message Node {
 message Buffer {
   optional string uri = 1;
   optional uint64 byte_length = 2;
-  optional uint64 generated_byte_length = 3;
 }
 
 enum BufferTarget {
@@ -39,11 +38,12 @@ enum BufferTarget {
 }
 
 message BufferView {
-  optional uint32 buffer = 1;
+  optional int32 buffer = 1;
   optional uint64 byte_length = 2;
   optional uint64 byte_offset = 3;
   optional uint32 byte_stride = 4;
   optional BufferTarget target = 5;
+  optional bool generated = 6;
 }
 
 enum ComponentType {

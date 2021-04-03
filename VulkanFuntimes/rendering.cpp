@@ -360,10 +360,10 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
 }
 
 Camera getCamera() {
-  static auto start = std::chrono::high_resolution_clock::now();
-  auto now = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float> spinTime =
-      (now - start) % std::chrono::seconds(8);
+//  static auto start = std::chrono::high_resolution_clock::now();
+//  auto now = std::chrono::high_resolution_clock::now();
+//  std::chrono::duration<float> spinTime =
+//      (now - start) % std::chrono::seconds(8);
   Camera result;
   result.proj = glm::perspective(
       /*fovy=*/glm::radians(45.f),

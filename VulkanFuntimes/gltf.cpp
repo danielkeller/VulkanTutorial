@@ -3,7 +3,6 @@
 #include <google/protobuf/util/json_util.h>
 #include <google/protobuf/util/message_differencer.h>
 #include <filesystem>
-#include <fstream>
 #include "stb_image.h"
 #include "glm/gtc/type_ptr.hpp"
 #include "glm/mat4x4.hpp"
@@ -56,17 +55,17 @@ uint32_t setFieldInsert(google::protobuf::RepeatedPtrField<T>* field,
   return field->size() - 1;
 }
 
-Gltf::Gltf(std::filesystem::path path) {
-  directory_ = path;
-  directory_.remove_filename();
+uint64_t Gltf::plainDataSize() const {
+  uint64_t end = 0;
+  for (const gltf::BufferView& view : data_.buffer_views())
+    if (view.has_target() && !view.generated())
+      end = std::max(end, view.byte_offset() + view.byte_length());
+  return end;
+}
 
-  std::ifstream file(path, std::ios::ate | std::ios::binary);
-  if (!file.is_open())
-    throw std::runtime_error("failed to open \"" + path.string() + "\"");
-  size_t fileSize = (size_t)file.tellg();
-  std::string buffer(fileSize, '\0');
-  file.seekg(0);
-  file.read(buffer.data(), fileSize);
+void Gltf::readJSON(size_t length) {
+  std::string buffer(length, '\0');
+  file_.read(buffer.data(), length);
 
   google::protobuf::util::JsonParseOptions options;
   options.ignore_unknown_fields = true;
@@ -74,11 +73,59 @@ Gltf::Gltf(std::filesystem::path path) {
   auto parseStatus =
       google::protobuf::util::JsonStringToMessage(buffer, &data_, options);
   if (!parseStatus.ok())
-    throw std::runtime_error("failed to parse \"" + path.string() +
-                             "\": " + parseStatus.message().as_string());
+    throw std::runtime_error("failed to parse: " +
+                             parseStatus.message().as_string());
+}
 
+Gltf::Gltf(std::filesystem::path path) {
+  directory_ = path;
+  directory_.remove_filename();
+
+  file_ = std::ifstream(path, std::ios::ate | std::ios::binary);
+  if (!file_.is_open()) throw std::runtime_error("failed to open");
+  size_t fileSize = (size_t)file_.tellg();
+  file_.seekg(0);
+  file_.exceptions(file_.exceptions() | std::ios_base::eofbit);
+
+  uint32_t magic;
+  file_.read((char*)&magic, 4);
+  if (magic == 0x46546C67) {
+    // GLB file
+    uint32_t version, size;
+    file_.read((char*)&version, 4);
+    file_.read((char*)&size, 4);
+    if (version != 2)
+      throw std::runtime_error("Wrong glTF version: " +
+                               std::to_string(version));
+    if (size > fileSize) throw std::runtime_error("File truncated");
+    uint32_t dataLength, dataType;
+    file_.read((char*)&dataLength, 4);
+    file_.read((char*)&dataType, 4);
+    if (dataType != 0x4E4F534A)
+      throw std::runtime_error("Expected JSON segment");
+    readJSON(dataLength);
+    auto dataEnd = file_.tellg();
+    if (dataEnd < fileSize) {
+      uint32_t binLength, binType;
+      file_.read((char*)&binLength, 4);
+      file_.read((char*)&binType, 4);
+      if (binType != 0x004E4942)
+        throw std::runtime_error("Expected BIN segment");
+      bufferStart_ = dataEnd + 8ll;
+    }
+  } else {
+    // JSON file
+    file_.seekg(0);
+    readJSON(fileSize);
+  }
+
+  // Info for generated tangent data
   uint32_t tangentBufferView = data_.buffer_views_size();
-  data_.add_buffer_views()->set_buffer(0);
+  gltf::BufferView* tangentBufferViewInfo = data_.add_buffer_views();
+  tangentBufferViewInfo->set_target(gltf::ARRAY_BUFFER);
+  tangentBufferViewInfo->set_buffer(0);
+  tangentBufferViewInfo->set_generated(true);
+  tangentBufferViewInfo->set_byte_offset(plainDataSize());
 
   for (gltf::Mesh& mesh : *data_.mutable_meshes()) {
     for (gltf::Primitive& prim : *mesh.mutable_primitives()) {
@@ -88,19 +135,18 @@ Gltf::Gltf(std::filesystem::path path) {
           attr->has_texcoord_0()) {
         uint32_t vertexCount = data_.accessors(attr->position()).count();
         uint64_t tangentLength = vertexCount * sizeof(glm::vec4);
-        uint64_t tangentOffset = data_.buffers(0).generated_byte_length();
-        data_.mutable_buffers(0)->set_generated_byte_length(tangentOffset +
-                                                            tangentLength);
+        uint64_t tangentOffset = tangentBufferViewInfo->byte_length();
+        tangentBufferViewInfo->set_byte_length(tangentOffset + tangentLength);
 
         attr->set_tangent(data_.accessors_size());
         gltf::Accessor* accessor = data_.add_accessors();
         accessor->set_component_type(gltf::FLOAT);
         accessor->set_type(gltf::VEC4);
         accessor->set_buffer_view(tangentBufferView);
-        accessor->set_byte_offset(data_.buffers(0).byte_length() +
-                                  tangentOffset);
+        accessor->set_byte_offset(tangentOffset);
       }
 
+      // Create Vulkan draw call info
       gltf::Pipeline pipeline;
       gltf::DrawCall* drawCall = mesh.add_draw_calls();
 
@@ -175,8 +221,11 @@ vk::PipelineVertexInputStateCreateInfo Gltf::pipelineInfo(uint32_t p) const {
 }
 
 vk::DeviceSize Gltf::bufferSize() const {
-  return data_.buffers(0).byte_length() +
-         data_.buffers(0).generated_byte_length();
+  vk::DeviceSize end = 0;
+  for (const gltf::BufferView& view : data_.buffer_views())
+    if (view.has_target())
+      end = std::max(end, view.byte_offset() + view.byte_length());
+  return end;
 }
 
 template <class T>
@@ -205,12 +254,17 @@ BufferRef<T> getBufferRef(const gltf::Gltf& data, char* ptr,
 
 void Gltf::readBuffers(char* output) const {
   const gltf::Buffer& buf = data_.buffers(0);
-  if (!buf.has_uri()) return;
-  std::filesystem::path path = directory_ / buf.uri();
-  std::ifstream file(path, std::ios::binary);
-  if (!file.is_open())
-    throw std::runtime_error("failed to open \"" + path.string() + "\"");
-  file.read(output, buf.byte_length());
+  uint64_t readSize = plainDataSize();
+  if (buf.has_uri()) {
+    std::filesystem::path path = directory_ / buf.uri();
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open())
+      throw std::runtime_error("failed to open \"" + path.string() + "\"");
+    file.read(output, readSize);
+  } else {
+    file_.seekg(bufferStart_);
+    file_.read(output, readSize);
+  }
 
   // Generate tangents if needed
   for (const gltf::Mesh& mesh : data_.meshes()) {
@@ -219,7 +273,7 @@ void Gltf::readBuffers(char* output) const {
           getBufferRef<glm::vec4>(data_, output, drawCall, gltf::TANGENT,
                                   gltf::FORMAT_R32G32B32A32_SFLOAT);
       // Is it already in the buffer?
-      if (tangents.buffer_ - output < buf.byte_length()) continue;
+      if (tangents.buffer_ - output < readSize) continue;
 
       auto positions =
           getBufferRef<glm::vec3>(data_, output, drawCall, gltf::POSITION,
@@ -318,18 +372,58 @@ void Gltf::readUniforms(char* output) const {
   }
 }
 
+struct StbIoData {
+  std::ifstream& file_;
+  size_t current_;
+  size_t end_;
+  int read(char* data, int size) {
+    int toRead = std::min(int(end_ - current_), size);
+    current_ += toRead;
+    file_.read(data, toRead);
+    return toRead;
+  }
+  void skip(int n) {
+    int toRead = std::min(int(end_ - current_), n);
+    current_ += toRead;
+    file_.seekg(toRead, std::ios_base::cur);
+  }
+  int eof() { return current_ == end_; }
+};
+
+constexpr stbi_io_callbacks io_callbacks = {
+    [](void* user, char* data, int size) {
+      return ((StbIoData*)user)->read(data, size);
+    },
+    [](void* user, int n) { ((StbIoData*)user)->skip(n); },
+    [](void* user) { return ((StbIoData*)user)->eof(); }};
+
 std::vector<Pixels> Gltf::getImages() const {
   std::vector<Pixels> result;
   for (const gltf::Image& image : data_.images()) {
-    std::filesystem::path path = directory_ / image.uri();
-    //    std::filesystem::path path = "Textures/checker.png";
-
     int width, height, channels;
-    unsigned char* data =
-        stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    if (!data)
-      throw std::runtime_error(std::string("stbi_load: ") +
-                               stbi_failure_reason() + " " + path.string());
+    unsigned char* data;
+    if (image.has_uri()) {
+      std::filesystem::path path = directory_ / image.uri();
+      //    std::filesystem::path path = "Textures/checker.png";
+      data =
+          stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+      if (!data)
+        throw std::runtime_error(std::string("stbi_load: ") +
+                                 stbi_failure_reason() + " " + path.string());
+    } else if (image.has_buffer_view()) {
+      const gltf::BufferView& bufferView =
+          data_.buffer_views(image.buffer_view());
+      size_t current = (long long)bufferStart_ + bufferView.byte_offset();
+      size_t end = current + bufferView.byte_length();
+      file_.seekg(current);
+      StbIoData ioData = {file_, current, end};
+      data = stbi_load_from_callbacks(&io_callbacks, &ioData, &width, &height,
+                                      &channels, STBI_rgb_alpha);
+      if (!data)
+        throw std::runtime_error(std::string("stbi_load: ") +
+                                 stbi_failure_reason());
+    } else
+      throw std::runtime_error("No image data");
     result.emplace_back(width, height, data);
   }
   return result;
