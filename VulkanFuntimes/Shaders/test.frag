@@ -23,6 +23,10 @@ vec4 data(uint index) {
   return texture(dataSampler, vec3(fragTexCoord, index));
 }
 
+vec3 tone(vec3 value, float exposure) {
+  return value/(value + exposure);
+}
+
 void main() {
   vec4 baseColor = material.baseColorFactor * tex(material.baseColorTexture);
   vec3 tnormal = data(material.normalTexture).rgb * 2 - 1;
@@ -33,8 +37,9 @@ void main() {
   vec3 normal = normalize(tnormal.x * fragTangent.xyz + tnormal.y * binormal +
                           tnormal.z * fragNormal);
 
-  normal = normalize(fragNormal);
+//  normal = normalize(fragNormal);
   vec3 light = normalize(vec3(1, 1, 1));
+  float intensity = 100.;
   vec3 view = normalize(fragView);
   vec3 H = normalize(light + view);
 
@@ -60,7 +65,7 @@ void main() {
 
   vec3 specular = F * D * G / (4 * VdotN * LdotN + 1e-6);
 
-  //  outColor.rgb = vec3(specular);
-  outColor.rgb = (diffuse + specular) * LdotN;
+  vec3 value = (diffuse + specular) * LdotN * intensity;
+  outColor.rgb = tone(value, 6);
   outColor.a = 1;
 }

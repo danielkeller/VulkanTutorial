@@ -371,7 +371,7 @@ Camera getCamera() {
       /*znear=*/0.1f, /*zfar=*/100.f);
   result.proj[1][1] *= -1;
   glm::vec4 eye =
-  glm::vec4(2.f, 1.f, 20.f, 1.f);// *
+  glm::vec4(2.f, 1.f, 2.f, 1.f);// *
 //      glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(45.f),
 //                  glm::vec3(0.f, 1.f, 0.f));
   result.eye = glm::lookAt(
