@@ -26,7 +26,7 @@ struct Gltf {
   gltf::Gltf data_;
   std::filesystem::path directory_;
   mutable std::ifstream file_;
-  std::ifstream::pos_type bufferStart_;
+  long long bufferStart_;
 
   mutable std::vector<vk::VertexInputBindingDescription> bindings_;
   mutable std::vector<vk::VertexInputAttributeDescription> attributes_;
@@ -44,7 +44,6 @@ struct Gltf {
   uint32_t materialUniformOffset(uint32_t material) const;
   
 private:
-  uint64_t plainDataSize() const;
   void readJSON(size_t length);
 };
 

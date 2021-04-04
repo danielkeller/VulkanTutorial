@@ -55,14 +55,6 @@ uint32_t setFieldInsert(google::protobuf::RepeatedPtrField<T>* field,
   return field->size() - 1;
 }
 
-uint64_t Gltf::plainDataSize() const {
-  uint64_t end = 0;
-  for (const gltf::BufferView& view : data_.buffer_views())
-    if (view.has_target() && !view.generated())
-      end = std::max(end, view.byte_offset() + view.byte_length());
-  return end;
-}
-
 void Gltf::readJSON(size_t length) {
   std::string buffer(length, '\0');
   file_.read(buffer.data(), length);
@@ -119,36 +111,41 @@ Gltf::Gltf(std::filesystem::path path) {
     readJSON(fileSize);
   }
 
-  // Info for generated tangent data
-  uint32_t tangentBufferView = data_.buffer_views_size();
-  gltf::BufferView* tangentBufferViewInfo = data_.add_buffer_views();
-  tangentBufferViewInfo->set_target(gltf::ARRAY_BUFFER);
-  tangentBufferViewInfo->set_buffer(0);
-  tangentBufferViewInfo->set_generated(true);
-  tangentBufferViewInfo->set_byte_offset(plainDataSize());
+  data_.mutable_buffers(0)->set_alloc_length(data_.buffers(0).byte_length());
+  uint64_t outputPos = 0;
 
   for (gltf::Mesh& mesh : *data_.mutable_meshes()) {
     for (gltf::Primitive& prim : *mesh.mutable_primitives()) {
       auto* attr = prim.mutable_attributes();
 
-      if (!attr->has_tangent() && attr->has_position() && attr->has_normal() &&
-          attr->has_texcoord_0()) {
-        uint32_t vertexCount = data_.accessors(attr->position()).count();
-        uint64_t tangentLength = vertexCount * sizeof(glm::vec4);
-        uint64_t tangentOffset = tangentBufferViewInfo->byte_length();
-        tangentBufferViewInfo->set_byte_length(tangentOffset + tangentLength);
-
-        attr->set_tangent(data_.accessors_size());
-        gltf::Accessor* accessor = data_.add_accessors();
-        accessor->set_component_type(gltf::FLOAT);
-        accessor->set_type(gltf::VEC4);
-        accessor->set_buffer_view(tangentBufferView);
-        accessor->set_byte_offset(tangentOffset);
-      }
-
       // Create Vulkan draw call info
       gltf::Pipeline pipeline;
       gltf::DrawCall* drawCall = mesh.add_draw_calls();
+
+      const gltf::Accessor& accessor = data_.accessors(prim.indices());
+      const gltf::BufferView& bufferview =
+          data_.buffer_views(accessor.buffer_view());
+      uint32_t indexSize = size(accessor.component_type());
+      uint32_t stride = std::max(indexSize, bufferview.byte_stride());
+      gltf::BufferRead read;
+      read.set_buffer(0);
+      read.set_buffer_offset(accessor.byte_offset() + bufferview.byte_offset());
+      read.set_buffer_stride(stride);
+      read.set_output_offset(outputPos);
+      read.set_output_stride(indexSize);
+      read.set_read_count(accessor.count());
+      *data_.add_buffer_reads() = read;
+      drawCall->set_index_buffer(0);
+      drawCall->set_index_type(vulkanIndexType(accessor.component_type()));
+      drawCall->set_index_offset(outputPos);
+      drawCall->set_index_count(accessor.count());
+      outputPos += indexSize * accessor.count();
+
+      drawCall->set_material(prim.material());
+
+      uint32_t attributesSize = 0;
+      std::vector<gltf::BufferRead> toPack;
+      std::vector<uint32_t> attributes;
 
       auto* refl = attr->GetReflection();
       auto* desc = attr->GetDescriptor();
@@ -160,45 +157,72 @@ Gltf::Gltf(std::filesystem::path path) {
             data_.accessors(refl->GetUInt32(*attr, field));
         const gltf::BufferView& bufferview =
             data_.buffer_views(accessor.buffer_view());
+        uint32_t attrSize = accessor.type() * size(accessor.component_type());
+        uint32_t stride = std::max(attrSize, bufferview.byte_stride());
+
+        gltf::BufferRead read;
+        read.set_buffer(0);
+        read.set_buffer_offset(accessor.byte_offset() +
+                               bufferview.byte_offset());
+        read.set_buffer_stride(stride);
+        read.set_output_offset(outputPos + attributesSize);
+        read.set_read_count(accessor.count());
+        toPack.push_back(read);
 
         gltf::PipelineAttribute attrData;
+        attrData.set_offset(attributesSize);
         attrData.set_format(
             vulkanFormat(accessor.type(), accessor.component_type()));
         attrData.set_location(
             static_cast<gltf::ShaderLocation>(field->number()));
-        uint32_t attrIndex =
-            setFieldInsert(data_.mutable_attributes(), attrData);
-
-        gltf::PipelineBinding binding;
-        binding.add_attributes(attrIndex);
-        uint32_t minStride = accessor.type() * size(accessor.component_type());
-        binding.set_stride(std::max(minStride, bufferview.byte_stride()));
-        uint32_t bindIndex = setFieldInsert(data_.mutable_bindings(), binding);
-
-        pipeline.add_bindings(bindIndex);
-
-        gltf::DrawCall::DrawBinding* drawBind = drawCall->add_bindings();
-        drawBind->set_buffer(bufferview.buffer());
-        drawBind->set_offset(accessor.byte_offset() + bufferview.byte_offset());
+        attributes.push_back(
+            setFieldInsert(data_.mutable_attributes(), attrData));
+        attributesSize += attrSize;
       }
 
+      if (!attr->has_tangent() && attr->has_position() && attr->has_normal() &&
+          attr->has_texcoord_0()) {
+        drawCall->set_generate_tangents(true);
+        gltf::PipelineAttribute attrData;
+        attrData.set_offset(attributesSize);
+        attrData.set_format(gltf::FORMAT_R32G32B32A32_SFLOAT);
+        attrData.set_location(gltf::TANGENT);
+        attributes.push_back(
+            setFieldInsert(data_.mutable_attributes(), attrData));
+        attributesSize += sizeof(glm::vec4);
+      }
+
+      gltf::PipelineBinding binding;
+      std::sort(attributes.begin(), attributes.end());
+      binding.mutable_attributes()->Add(attributes.begin(), attributes.end());
+      binding.set_stride(attributesSize);
+      uint32_t bindIndex = setFieldInsert(data_.mutable_bindings(), binding);
+
+      pipeline.add_bindings(bindIndex);
       uint32_t pipelineIndex =
           setFieldInsert(data_.mutable_pipelines(), pipeline);
       drawCall->set_pipeline(pipelineIndex);
 
-      const gltf::Accessor& accessor = data_.accessors(prim.indices());
-      const gltf::BufferView& bufferview =
-          data_.buffer_views(accessor.buffer_view());
-      drawCall->set_index_buffer(bufferview.buffer());
-      drawCall->set_index_type(vulkanIndexType(accessor.component_type()));
-      drawCall->set_index_offset(accessor.byte_offset() +
-                                 bufferview.byte_offset());
-      drawCall->set_index_count(accessor.count());
-      drawCall->set_material(prim.material());
-      if (bufferview.byte_stride() > 0)
-        throw std::runtime_error("Vulkan indices cannot have strides");
+      gltf::DrawCall::DrawBinding* drawBind = drawCall->add_bindings();
+      drawBind->set_buffer(0);
+      drawBind->set_offset(outputPos);
+
+      // Counts should all be the same
+      outputPos += attributesSize * toPack[0].read_count();
+
+      for (gltf::BufferRead& read : toPack) {
+        read.set_output_stride(attributesSize);
+        data_.mutable_buffer_reads()->Add(std::move(read));
+      }
     }
   }
+
+  std::sort(data_.mutable_buffer_reads()->begin(),
+            data_.mutable_buffer_reads()->end(), [](auto a, auto b) {
+              return a.buffer_offset() < b.buffer_offset();
+            });
+
+  data_.mutable_buffers(0)->set_alloc_length(outputPos);
 }
 
 vk::PipelineVertexInputStateCreateInfo Gltf::pipelineInfo(uint32_t p) const {
@@ -221,11 +245,7 @@ vk::PipelineVertexInputStateCreateInfo Gltf::pipelineInfo(uint32_t p) const {
 }
 
 vk::DeviceSize Gltf::bufferSize() const {
-  vk::DeviceSize end = 0;
-  for (const gltf::BufferView& view : data_.buffer_views())
-    if (view.has_target())
-      end = std::max(end, view.byte_offset() + view.byte_length());
-  return end;
+  return data_.buffers(0).alloc_length();
 }
 
 template <class T>
@@ -254,27 +274,39 @@ BufferRef<T> getBufferRef(const gltf::Gltf& data, char* ptr,
 
 void Gltf::readBuffers(char* output) const {
   const gltf::Buffer& buf = data_.buffers(0);
-  uint64_t readSize = plainDataSize();
+  std::ifstream binfile;
+  std::ifstream* file;
   if (buf.has_uri()) {
     std::filesystem::path path = directory_ / buf.uri();
-    std::ifstream file(path, std::ios::binary);
-    if (!file.is_open())
+    binfile = std::ifstream(path, std::ios::binary);
+    if (!binfile.is_open())
       throw std::runtime_error("failed to open \"" + path.string() + "\"");
-    file.read(output, readSize);
+    file = &binfile;
   } else {
     file_.seekg(bufferStart_);
-    file_.read(output, readSize);
+    file = &file_;
+  }
+
+  uint64_t current = 0;
+  for (const gltf::BufferRead& read : data_.buffer_reads()) {
+    uint32_t size = std::min(read.buffer_stride(), read.output_stride());
+    for (uint64_t i = 0; i < read.read_count(); ++i) {
+      uint64_t start = read.buffer_offset() + read.buffer_stride() * i;
+      uint64_t outstart = read.output_offset() + read.output_stride() * i;
+      if (current != start)  // Should be rare
+        file->seekg(start - current, std::ios_base::cur);
+      file->read(output + outstart, size);
+      current = start + size;
+    }
   }
 
   // Generate tangents if needed
   for (const gltf::Mesh& mesh : data_.meshes()) {
     for (const gltf::DrawCall& drawCall : mesh.draw_calls()) {
+      if (!drawCall.generate_tangents()) continue;
       auto tangents =
           getBufferRef<glm::vec4>(data_, output, drawCall, gltf::TANGENT,
                                   gltf::FORMAT_R32G32B32A32_SFLOAT);
-      // Is it already in the buffer?
-      if (tangents.buffer_ - output < readSize) continue;
-
       auto positions =
           getBufferRef<glm::vec3>(data_, output, drawCall, gltf::POSITION,
                                   gltf::FORMAT_R32G32B32_SFLOAT);
@@ -413,7 +445,7 @@ std::vector<Pixels> Gltf::getImages() const {
     } else if (image.has_buffer_view()) {
       const gltf::BufferView& bufferView =
           data_.buffer_views(image.buffer_view());
-      size_t current = (long long)bufferStart_ + bufferView.byte_offset();
+      size_t current = bufferStart_ + bufferView.byte_offset();
       size_t end = current + bufferView.byte_length();
       file_.seekg(current);
       StbIoData ioData = {file_, current, end};

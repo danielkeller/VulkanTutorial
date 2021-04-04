@@ -29,6 +29,7 @@ message Node {
 message Buffer {
   optional string uri = 1;
   optional uint64 byte_length = 2;
+  optional uint64 alloc_length = 3;
 }
 
 enum BufferTarget {
@@ -43,7 +44,6 @@ message BufferView {
   optional uint64 byte_offset = 3;
   optional uint32 byte_stride = 4;
   optional BufferTarget target = 5;
-  optional bool generated = 6;
 }
 
 enum ComponentType {
@@ -103,6 +103,15 @@ message Primitive {
   optional Mode mode = 4 [default = TRIANGLES];
 }
 
+message BufferRead {
+  optional uint32 buffer = 1;
+  optional uint64 buffer_offset = 2;
+  optional uint32 buffer_stride = 3;
+  optional uint64 output_offset = 4;
+  optional uint32 output_stride = 5;
+  optional uint64 read_count = 6;
+}
+
 enum Format {
   FORMAT_UNDEFINED = 0;
   FORMAT_R16_UINT = 74;
@@ -149,7 +158,8 @@ message DrawCall {
   optional uint64 index_offset = 4;
   optional IndexType index_type = 5;
   optional uint32 index_count = 6;
-  optional uint32 material = 7;
+  optional bool generate_tangents = 7;
+  optional uint32 material = 8;
 }
 
 message Mesh {
@@ -236,14 +246,16 @@ message Gltf {
   repeated PipelineAttribute attributes = 5;
   repeated PipelineBinding bindings = 6;
   repeated Pipeline pipelines = 7;
-  
   repeated Mesh meshes = 8;
-  repeated Accessor accessors = 9;
-  repeated BufferView buffer_views = 10;
-  repeated Buffer buffers = 11;
   
-  repeated Material materials = 12;
-  repeated Texture textures = 13;
-  repeated Sampler samplers = 14;
-  repeated Image images = 15;
+  repeated BufferRead buffer_reads = 9;
+  repeated Buffer buffers = 10;
+  
+  repeated Material materials = 11;
+  repeated Texture textures = 12;
+  repeated Sampler samplers = 13;
+  repeated Image images = 14;
+  
+  repeated Accessor accessors = 15;
+  repeated BufferView buffer_views = 16;
 }

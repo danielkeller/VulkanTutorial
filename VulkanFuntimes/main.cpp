@@ -17,9 +17,10 @@ void mainApp() {
   FpsCount fpsCount;
 
 //  Gltf gltffile("models/MetalRough/MetalRoughSpheres.gltf");
-//  Gltf gltffile("models/DamagedHelmet/DamagedHelmet.gltf");
+//  Gltf gltffile("models/2CylinderEngine/2CylinderEngine.gltf");
   Gltf gltffile("models/DamagedHelmet.glb");
   // Gltf gltffile("models/viking_room/scene.gltf");
+  gltffile.data_.PrintDebugString();
 
   Pipeline pipeline1(gltffile);
 
