@@ -7,20 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3786A1E22607A57C0003ECCF /* driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E02607A57B0003ECCF /* driver.cpp */; };
-		3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E42607A6470003ECCF /* swapchain.cpp */; };
-		3786A1E92607A6520003ECCF /* rendering.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E72607A6520003ECCF /* rendering.cpp */; };
-		3786A1EE260B6BD40003ECCF /* stb.c in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1ED260B6BD40003ECCF /* stb.c */; };
 		3786A211260BB8040003ECCF /* triangle.vert in Sources */ = {isa = PBXBuildFile; fileRef = 37C4644726013D550018E3F8 /* triangle.vert */; };
 		3786A212260BB8040003ECCF /* test.frag in Sources */ = {isa = PBXBuildFile; fileRef = 37C4644926013D880018E3F8 /* test.frag */; };
 		3786A213260BB8040003ECCF /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
-		3786A214260BB8040003ECCF /* driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E02607A57B0003ECCF /* driver.cpp */; };
-		3786A215260BB8040003ECCF /* driver.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E12607A57B0003ECCF /* driver.hpp */; };
-		3786A216260BB8040003ECCF /* util.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E32607A5D80003ECCF /* util.hpp */; };
 		3786A217260BB8040003ECCF /* swapchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E42607A6470003ECCF /* swapchain.cpp */; };
-		3786A218260BB8040003ECCF /* swapchain.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E52607A6470003ECCF /* swapchain.hpp */; };
 		3786A219260BB8040003ECCF /* rendering.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E72607A6520003ECCF /* rendering.cpp */; };
-		3786A21A260BB8040003ECCF /* rendering.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E82607A6520003ECCF /* rendering.hpp */; };
 		3786A21B260BB8040003ECCF /* stb.c in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1ED260B6BD40003ECCF /* stb.c */; };
 		3786A21D260BB8120003ECCF /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642525FFDC270018E3F8 /* Cocoa.framework */; };
 		3786A21E260BB8170003ECCF /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642725FFDC2F0018E3F8 /* IOKit.framework */; };
@@ -30,22 +21,13 @@
 		3786A241260BC5110003ECCF /* libMoltenVK.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 37C4643E25FFE8700018E3F8 /* libMoltenVK.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		3786A246260BC6380003ECCF /* libVkLayer_khronos_validation.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 3786A245260BC6290003ECCF /* libVkLayer_khronos_validation.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		3786A248260BCD300003ECCF /* Textures in Resources */ = {isa = PBXBuildFile; fileRef = 3786A247260BCD300003ECCF /* Textures */; };
-		3786A252260CEBEF0003ECCF /* gltf.proto in Sources */ = {isa = PBXBuildFile; fileRef = 3786A251260CEBEF0003ECCF /* gltf.proto */; };
 		3786A256260CEEEA0003ECCF /* gltf.proto in Sources */ = {isa = PBXBuildFile; fileRef = 3786A251260CEBEF0003ECCF /* gltf.proto */; };
 		3786A25B260CF2C80003ECCF /* libprotobuf.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3786A25A260CF2C70003ECCF /* libprotobuf.a */; };
 		3786A25D260CF39A0003ECCF /* models in Resources */ = {isa = PBXBuildFile; fileRef = 3786A25C260CF39A0003ECCF /* models */; };
-		3788D0B22614C58F007D9E0F /* mikktspace.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3788D0B12614C58F007D9E0F /* mikktspace.cpp */; };
 		3788D0B32614C654007D9E0F /* mikktspace.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3788D0B12614C58F007D9E0F /* mikktspace.cpp */; };
 		37BC997E260D2253006CF9C6 /* gltf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37BC997D260D2253006CF9C6 /* gltf.cpp */; };
-		37C4641725FFD9980018E3F8 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37C4641625FFD9980018E3F8 /* main.cpp */; };
-		37C4642125FFDB190018E3F8 /* libglfw3.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642025FFDB190018E3F8 /* libglfw3.a */; };
-		37C4642625FFDC270018E3F8 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642525FFDC270018E3F8 /* Cocoa.framework */; };
-		37C4642825FFDC2F0018E3F8 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4642725FFDC2F0018E3F8 /* IOKit.framework */; };
-		37C4644325FFE95E0018E3F8 /* vulkan in Resources */ = {isa = PBXBuildFile; fileRef = 37C4644225FFE95E0018E3F8 /* vulkan */; };
-		37C4644425FFEA1C0018E3F8 /* libMoltenVK.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4643E25FFE8700018E3F8 /* libMoltenVK.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		37C4644525FFF1850018E3F8 /* libvulkan.1.2.170.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 37C4643A25FFE7E30018E3F8 /* libvulkan.1.2.170.dylib */; };
-		37C4644B26013E380018E3F8 /* triangle.vert in Sources */ = {isa = PBXBuildFile; fileRef = 37C4644726013D550018E3F8 /* triangle.vert */; };
-		37C4644D260140000018E3F8 /* test.frag in Sources */ = {isa = PBXBuildFile; fileRef = 37C4644926013D880018E3F8 /* test.frag */; };
+		37EC2E252619F9C4009DA14A /* drawdata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 37EC2E222619F89E009DA14A /* drawdata.cpp */; };
+		37EC2E262619FA36009DA14A /* driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3786A1E02607A57B0003ECCF /* driver.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
@@ -78,20 +60,6 @@
 			runOncePerArchitecture = 0;
 			script = "\"$PROJECT_DIR/Bin/protoc\" \"--proto_path=$INPUT_FILE_DIR\" \"--cpp_out=$DERIVED_FILE_DIR\" \"$INPUT_FILE_DIR/$INPUT_FILE_NAME\"\n\n";
 		};
-		37C4644C26013E630018E3F8 /* PBXBuildRule */ = {
-			isa = PBXBuildRule;
-			compilerSpec = com.apple.compilers.proxy.script;
-			filePatterns = "*.vert *.frag";
-			fileType = pattern.proxy;
-			inputFiles = (
-			);
-			isEditable = 1;
-			outputFiles = (
-				$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/$INPUT_FILE_NAME,
-			);
-			runOncePerArchitecture = 0;
-			script = "glslc \"$INPUT_FILE_DIR/$INPUT_FILE_NAME\" -o \"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/$INPUT_FILE_NAME\"\n";
-		};
 /* End PBXBuildRule section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -105,26 +73,6 @@
 				3786A246260BC6380003ECCF /* libVkLayer_khronos_validation.dylib in Embed Libraries */,
 			);
 			name = "Embed Libraries";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		37C4641125FFD9980018E3F8 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
-		37C4643925FFE5520018E3F8 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				37C4644425FFEA1C0018E3F8 /* libMoltenVK.dylib in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -154,7 +102,6 @@
 		3788D0B12614C58F007D9E0F /* mikktspace.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = mikktspace.cpp; sourceTree = "<group>"; };
 		378E7E5426025F9A00013BD7 /* vulkan */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vulkan; sourceTree = "<group>"; };
 		37BC997D260D2253006CF9C6 /* gltf.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = gltf.cpp; sourceTree = "<group>"; };
-		37C4641325FFD9980018E3F8 /* VulkanFuntimes */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = VulkanFuntimes; sourceTree = BUILT_PRODUCTS_DIR; };
 		37C4641625FFD9980018E3F8 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		37C4642025FFDB190018E3F8 /* libglfw3.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libglfw3.a; sourceTree = "<group>"; };
 		37C4642325FFDB580018E3F8 /* GLFW */ = {isa = PBXFileReference; lastKnownFileType = folder; path = GLFW; sourceTree = "<group>"; };
@@ -165,6 +112,8 @@
 		37C4644225FFE95E0018E3F8 /* vulkan */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vulkan; sourceTree = "<group>"; };
 		37C4644726013D550018E3F8 /* triangle.vert */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; path = triangle.vert; sourceTree = "<group>"; };
 		37C4644926013D880018E3F8 /* test.frag */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; path = test.frag; sourceTree = "<group>"; };
+		37EC2E222619F89E009DA14A /* drawdata.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = drawdata.cpp; sourceTree = "<group>"; };
+		37EC2E232619F89E009DA14A /* drawdata.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = drawdata.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -177,17 +126,6 @@
 				3786A21D260BB8120003ECCF /* Cocoa.framework in Frameworks */,
 				3786A25B260CF2C80003ECCF /* libprotobuf.a in Frameworks */,
 				3786A221260BB8280003ECCF /* libglfw3.a in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		37C4641025FFD9980018E3F8 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				37C4644525FFF1850018E3F8 /* libvulkan.1.2.170.dylib in Frameworks */,
-				37C4642625FFDC270018E3F8 /* Cocoa.framework in Frameworks */,
-				37C4642125FFDB190018E3F8 /* libglfw3.a in Frameworks */,
-				37C4642825FFDC2F0018E3F8 /* IOKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -219,7 +157,6 @@
 		37C4641425FFD9980018E3F8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				37C4641325FFD9980018E3F8 /* VulkanFuntimes */,
 				3786A1F6260BB7960003ECCF /* VulkanApp.app */,
 			);
 			name = Products;
@@ -243,6 +180,8 @@
 				3786A251260CEBEF0003ECCF /* gltf.proto */,
 				3788D0B02614C30C007D9E0F /* mikktspace.hpp */,
 				3788D0B12614C58F007D9E0F /* mikktspace.cpp */,
+				37EC2E222619F89E009DA14A /* drawdata.cpp */,
+				37EC2E232619F89E009DA14A /* drawdata.hpp */,
 			);
 			path = VulkanFuntimes;
 			sourceTree = "<group>";
@@ -322,26 +261,6 @@
 			productReference = 3786A1F6260BB7960003ECCF /* VulkanApp.app */;
 			productType = "com.apple.product-type.application";
 		};
-		37C4641225FFD9980018E3F8 /* VulkanFuntimes */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 37C4641A25FFD9980018E3F8 /* Build configuration list for PBXNativeTarget "VulkanFuntimes" */;
-			buildPhases = (
-				37C4640F25FFD9980018E3F8 /* Sources */,
-				37C4641025FFD9980018E3F8 /* Frameworks */,
-				37C4641125FFD9980018E3F8 /* CopyFiles */,
-				37C4643925FFE5520018E3F8 /* Embed Frameworks */,
-				37C4644025FFE91B0018E3F8 /* Resources */,
-			);
-			buildRules = (
-				37C4644C26013E630018E3F8 /* PBXBuildRule */,
-			);
-			dependencies = (
-			);
-			name = VulkanFuntimes;
-			productName = VulkanFuntimes;
-			productReference = 37C4641325FFD9980018E3F8 /* VulkanFuntimes */;
-			productType = "com.apple.product-type.tool";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -351,9 +270,6 @@
 				LastUpgradeCheck = 1240;
 				TargetAttributes = {
 					3786A1F5260BB7960003ECCF = {
-						CreatedOnToolsVersion = 12.4;
-					};
-					37C4641225FFD9980018E3F8 = {
 						CreatedOnToolsVersion = 12.4;
 					};
 				};
@@ -371,7 +287,6 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				37C4641225FFD9980018E3F8 /* VulkanFuntimes */,
 				3786A1F5260BB7960003ECCF /* VulkanApp */,
 			);
 		};
@@ -388,14 +303,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		37C4644025FFE91B0018E3F8 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				37C4644325FFE95E0018E3F8 /* vulkan in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -407,32 +314,13 @@
 				3786A211260BB8040003ECCF /* triangle.vert in Sources */,
 				3786A212260BB8040003ECCF /* test.frag in Sources */,
 				3786A213260BB8040003ECCF /* main.cpp in Sources */,
-				3786A214260BB8040003ECCF /* driver.cpp in Sources */,
+				37EC2E262619FA36009DA14A /* driver.cpp in Sources */,
 				37BC997E260D2253006CF9C6 /* gltf.cpp in Sources */,
-				3786A215260BB8040003ECCF /* driver.hpp in Sources */,
-				3786A216260BB8040003ECCF /* util.hpp in Sources */,
 				3786A217260BB8040003ECCF /* swapchain.cpp in Sources */,
-				3786A218260BB8040003ECCF /* swapchain.hpp in Sources */,
 				3786A219260BB8040003ECCF /* rendering.cpp in Sources */,
-				3786A21A260BB8040003ECCF /* rendering.hpp in Sources */,
+				37EC2E252619F9C4009DA14A /* drawdata.cpp in Sources */,
 				3788D0B32614C654007D9E0F /* mikktspace.cpp in Sources */,
 				3786A21B260BB8040003ECCF /* stb.c in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		37C4640F25FFD9980018E3F8 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				3786A1E92607A6520003ECCF /* rendering.cpp in Sources */,
-				3788D0B22614C58F007D9E0F /* mikktspace.cpp in Sources */,
-				37C4641725FFD9980018E3F8 /* main.cpp in Sources */,
-				3786A252260CEBEF0003ECCF /* gltf.proto in Sources */,
-				3786A1E62607A6470003ECCF /* swapchain.cpp in Sources */,
-				37C4644B26013E380018E3F8 /* triangle.vert in Sources */,
-				37C4644D260140000018E3F8 /* test.frag in Sources */,
-				3786A1EE260B6BD40003ECCF /* stb.c in Sources */,
-				3786A1E22607A57C0003ECCF /* driver.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -609,44 +497,6 @@
 			};
 			name = Release;
 		};
-		37C4641B25FFD9980018E3F8 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Lib",
-					Lib,
-				);
-				INFOPLIST_FILE = "$(SRCROOT)/VulkanFuntimes/Info.plist";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Lib",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = vulkanfuntimes;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Debug;
-		};
-		37C4641C25FFD9980018E3F8 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Lib",
-					Lib,
-				);
-				INFOPLIST_FILE = "$(SRCROOT)/VulkanFuntimes/Info.plist";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Lib",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = vulkanfuntimes;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -664,15 +514,6 @@
 			buildConfigurations = (
 				37C4641825FFD9980018E3F8 /* Debug */,
 				37C4641925FFD9980018E3F8 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		37C4641A25FFD9980018E3F8 /* Build configuration list for PBXNativeTarget "VulkanFuntimes" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				37C4641B25FFD9980018E3F8 /* Debug */,
-				37C4641C25FFD9980018E3F8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

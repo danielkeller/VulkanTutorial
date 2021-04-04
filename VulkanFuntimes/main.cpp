@@ -2,6 +2,7 @@
 
 #include "driver.hpp"
 #include "swapchain.hpp"
+#include "drawdata.hpp"
 #include "rendering.hpp"
 #include "util.hpp"
 #include "gltf.hpp"
