@@ -20,11 +20,10 @@ void mainApp() {
 //  Gltf gltffile("models/2CylinderEngine/2CylinderEngine.gltf");
   Gltf gltffile("models/DamagedHelmet.glb");
   // Gltf gltffile("models/viking_room/scene.gltf");
-  gltffile.data_.PrintDebugString();
-
+  
   Pipeline pipeline1(gltffile);
 
-  TransferCommandPool transferCommandPool;
+  TransferManager transferManager;
   VertexBuffers vertexBuffers1(gltffile);
   Textures textures1(gltffile);
   DescriptorPool descriptorPool1(pipeline1.descriptorSetLayout_, textures1,
@@ -77,6 +76,7 @@ void mainApp() {
 
       glfwPollEvents();
       fpsCount.count();
+      if (gFrame % 100 == 0) transferManager.collectGarbage();
     }
     gGraphicsQueue.waitIdle();
   }

@@ -113,26 +113,39 @@ Pipeline::~Pipeline() {
   gDevice.destroy(descriptorSetLayout_);
 }
 
-vk::CommandPool gTransferCommandPool;
-
-TransferCommandPool::TransferCommandPool() {
-  gTransferCommandPool = gDevice.createCommandPool(
+TransferManager *gTransferManager;
+TransferManager::TransferManager() {
+  transferCommandPool_ = gDevice.createCommandPool(
       {vk::CommandPoolCreateFlagBits::eTransient, gGraphicsQueueFamilyIndex});
-}
-TransferCommandPool::~TransferCommandPool() {
-  gDevice.destroy(gTransferCommandPool);
-  gTransferCommandPool = nullptr;
-}
-TransferCommandBuffer::TransferCommandBuffer() {
-  cmd_ = gDevice.allocateCommandBuffers(
-      {gTransferCommandPool, vk::CommandBufferLevel::ePrimary, 1})[0];
-  cmd_.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+  gTransferManager = this;
 }
 
-void TransferCommandBuffer::copy(vk::Buffer from, vk::Buffer to,
-                                 vk::DeviceSize size,
-                                 vk::PipelineStageFlags dstStage,
-                                 vk::AccessFlags dstAccess) {
+Transfer TransferManager::newTransfer(vk::DeviceSize size) {
+  Transfer ret;
+  ret.buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
+                                      vk::BufferUsageFlagBits::eTransferSrc,
+                                      vk::SharingMode::eExclusive});
+
+  uint32_t stagingMemoryType =
+      getMemoryFor(gDevice.getBufferMemoryRequirements(ret.buffer_),
+                   vk::MemoryPropertyFlagBits::eHostVisible |
+                       vk::MemoryPropertyFlagBits::eHostCoherent);
+  ret.memory_ = gDevice.allocateMemory({size, stagingMemoryType});
+  gDevice.bindBufferMemory(ret.buffer_, ret.memory_, /*offset=*/0);
+  ret.pointer_ = (char *)gDevice.mapMemory(ret.memory_, /*offset=*/0, size);
+
+  ret.cmd_ = gDevice.allocateCommandBuffers(
+      {transferCommandPool_, vk::CommandBufferLevel::ePrimary, 1})[0];
+  ret.cmd_.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+  ret.done_ = gDevice.createFence({});
+
+  currentBuffers_.push_back(ret);
+  return ret;
+}
+
+void Transfer::copy(vk::Buffer from, vk::Buffer to, vk::DeviceSize size,
+                    vk::PipelineStageFlags dstStage,
+                    vk::AccessFlags dstAccess) {
   cmd_.copyBuffer(from, to, vk::BufferCopy(/*src=*/0, /*dst=*/0, size));
 
   vk::BufferMemoryBarrier barrier(vk::AccessFlagBits::eTransferWrite, dstAccess,
@@ -144,37 +157,36 @@ void TransferCommandBuffer::copy(vk::Buffer from, vk::Buffer to,
       /*dependencyFlags=*/{}, {}, barrier, {});
 }
 
-TransferCommandBuffer::~TransferCommandBuffer() {
+Transfer::~Transfer() {
   cmd_.end();
   vk::SubmitInfo submit;
   submit.setCommandBuffers(cmd_);
-  gGraphicsQueue.submit(submit);
+  gGraphicsQueue.submit(submit, done_);
+  gDevice.unmapMemory(memory_);
 }
 
-MappedStagingBuffer StagingBuffer::map(vk::DeviceSize size) {
-  buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
-                                  vk::BufferUsageFlagBits::eTransferSrc,
-                                  vk::SharingMode::eExclusive});
-  uint32_t stagingMemoryType =
-      getMemoryFor(gDevice.getBufferMemoryRequirements(buffer_),
-                   vk::MemoryPropertyFlagBits::eHostVisible |
-                       vk::MemoryPropertyFlagBits::eHostCoherent);
-  memory_ = gDevice.allocateMemory({size, stagingMemoryType});
-  gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
-
-  void *mapped = gDevice.mapMemory(memory_, /*offset=*/0, size);
-  return MappedStagingBuffer{memory_, (char *)mapped};
+void TransferManager::collectGarbage() {
+  for (auto it = currentBuffers_.begin(); it != currentBuffers_.end();) {
+    if (gDevice.getFenceStatus(it->done_) == vk::Result::eSuccess) {
+      gDevice.destroy(it->done_);
+      gDevice.destroy(it->buffer_);
+      gDevice.free(it->memory_);
+      it = currentBuffers_.erase(it);
+    } else
+      ++it;
+  }
+  if (currentBuffers_.empty()) gDevice.resetCommandPool(transferCommandPool_);
 }
-MappedStagingBuffer::~MappedStagingBuffer() { gDevice.unmapMemory(memory_); }
-StagingBuffer::~StagingBuffer() {
-  gDevice.destroy(buffer_);
-  gDevice.free(memory_);
+
+TransferManager::~TransferManager() {
+  gDevice.destroy(transferCommandPool_);
+  gTransferManager = nullptr;
 }
 
 VertexBuffers::VertexBuffers(const Gltf &model) {
   vk::DeviceSize size = model.bufferSize();
-  MappedStagingBuffer mapped = staging_buffer_.map(size);
-  model.readBuffers(mapped.pointer_);
+  Transfer transfer = gTransferManager->newTransfer(size);
+  model.readBuffers(transfer.pointer_);
 
   buffer_ = gDevice.createBuffer({/*flags=*/{}, size,
                                   vk::BufferUsageFlagBits::eIndexBuffer |
@@ -188,8 +200,7 @@ VertexBuffers::VertexBuffers(const Gltf &model) {
   memory_ = gDevice.allocateMemory({size, memoryType});
   gDevice.bindBufferMemory(buffer_, memory_, /*offset=*/0);
 
-  TransferCommandBuffer transfer;
-  transfer.copy(staging_buffer_.buffer_, buffer_, size,
+  transfer.copy(transfer.buffer_, buffer_, size,
                 vk::PipelineStageFlagBits::eVertexInput,
                 vk::AccessFlagBits::eIndexRead |
                     vk::AccessFlagBits::eVertexAttributeRead);
@@ -206,8 +217,8 @@ Textures::Textures(const Gltf &model) {
   vk::DeviceSize size = images[0].size() * layers;
   vk::Extent3D extent = images[0].extent();
 
-  MappedStagingBuffer mapped = staging_buffer_.map(size);
-  char *pointer = mapped.pointer_;
+  Transfer transfer = gTransferManager->newTransfer(size);
+  char *pointer = transfer.pointer_;
   for (const Pixels &pixels : images)
     pointer = std::copy_n(pixels.data_.get(), pixels.size(), pointer);
 
@@ -224,7 +235,6 @@ Textures::Textures(const Gltf &model) {
   memory_ = gDevice.allocateMemory({size, memoryType});
   gDevice.bindImageMemory(image_, memory_, /*offset=*/0);
 
-  TransferCommandBuffer transfer;
   vk::ImageSubresourceRange wholeImage(vk::ImageAspectFlagBits::eColor,
                                        /*baseMip=*/0, /*levelCount=*/1,
                                        /*baseLayer=*/0, layers);
@@ -245,7 +255,7 @@ Textures::Textures(const Gltf &model) {
   vk::BufferImageCopy copy(/*offset=*/0, /*bufferRowLength=*/0,
                            /*bufferImageHeight=*/0, wholeImageLayers,
                            vk::Offset3D(0, 0, 0), extent);
-  transfer.cmd_.copyBufferToImage(staging_buffer_.buffer_, image_,
+  transfer.cmd_.copyBufferToImage(transfer.buffer_, image_,
                                   vk::ImageLayout::eTransferDstOptimal, copy);
 
   vk::ImageMemoryBarrier toShader(
@@ -283,8 +293,8 @@ struct Camera {
 DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                const Textures &textures, const Gltf &gltf) {
   vk::DeviceSize sceneSize = gltf.uniformsSize();
-  MappedStagingBuffer mapped = staging_buffer_.map(sceneSize);
-  gltf.readUniforms(mapped.pointer_);
+  Transfer transfer = gTransferManager->newTransfer(sceneSize);
+  gltf.readUniforms(transfer.pointer_);
 
   scene_ = gDevice.createBuffer({/*flags=*/{}, sceneSize,
                                  vk::BufferUsageFlagBits::eUniformBuffer |
@@ -295,8 +305,7 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
                                vk::MemoryPropertyFlagBits::eDeviceLocal)});
   gDevice.bindBufferMemory(scene_, memory_, /*offset=*/0);
 
-  TransferCommandBuffer transfer;
-  transfer.copy(staging_buffer_.buffer_, scene_, sceneSize,
+  transfer.copy(transfer.buffer_, scene_, sceneSize,
                 vk::PipelineStageFlagBits::eVertexShader,
                 vk::AccessFlagBits::eUniformRead);
 
@@ -360,20 +369,19 @@ DescriptorPool::DescriptorPool(vk::DescriptorSetLayout layout,
 }
 
 Camera getCamera() {
-//  static auto start = std::chrono::high_resolution_clock::now();
-//  auto now = std::chrono::high_resolution_clock::now();
-//  std::chrono::duration<float> spinTime =
-//      (now - start) % std::chrono::seconds(8);
+  //  static auto start = std::chrono::high_resolution_clock::now();
+  //  auto now = std::chrono::high_resolution_clock::now();
+  //  std::chrono::duration<float> spinTime =
+  //      (now - start) % std::chrono::seconds(8);
   Camera result;
   result.proj = glm::perspective(
       /*fovy=*/glm::radians(45.f),
       gSwapchainExtent.width / (float)gSwapchainExtent.height,
       /*znear=*/0.1f, /*zfar=*/100.f);
   result.proj[1][1] *= -1;
-  glm::vec4 eye =
-  glm::vec4(2.f, 1.f, 2.f, 1.f);// *
-//      glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(45.f),
-//                  glm::vec3(0.f, 1.f, 0.f));
+  glm::vec4 eye = glm::vec4(2.f, 1.f, 2.f, 1.f);  // *
+  //      glm::rotate(glm::mat4(1.f), spinTime.count() * glm::radians(45.f),
+  //                  glm::vec3(0.f, 1.f, 0.f));
   result.eye = glm::lookAt(
       /*eye=*/glm::vec3(eye.x, eye.y, eye.z),
       /*center=*/glm::vec3(0.f, 0.f, 0.f),
