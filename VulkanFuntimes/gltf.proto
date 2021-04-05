@@ -172,7 +172,6 @@ message Image {
   optional string name = 1;
   optional string uri = 2;
   optional uint32 buffer_view = 3;
-  optional string mime_type = 4;
 }
 
 message Sampler {

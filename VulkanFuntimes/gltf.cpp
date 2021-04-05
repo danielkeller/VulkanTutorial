@@ -77,7 +77,6 @@ Gltf::Gltf(std::filesystem::path path) {
   if (!file_.is_open()) throw std::runtime_error("failed to open");
   size_t fileSize = (size_t)file_.tellg();
   file_.seekg(0);
-  file_.exceptions(file_.exceptions() | std::ios_base::eofbit);
 
   uint32_t magic;
   file_.read((char*)&magic, 4);
@@ -105,13 +104,31 @@ Gltf::Gltf(std::filesystem::path path) {
         throw std::runtime_error("Expected BIN segment");
       bufferStart_ = dataEnd + 8ll;
     }
+    setupVulkanData();
+  } else if (magic == 0x62706C67) {
+    // GLPB file
+    data_.ParseFromIstream(&file_);
+    openBinFile();
   } else {
     // JSON file
     file_.seekg(0);
     readJSON(fileSize);
+    openBinFile();
+    setupVulkanData();
   }
+}
 
-  data_.mutable_buffers(0)->set_alloc_length(data_.buffers(0).byte_length());
+void Gltf::openBinFile() {
+  const gltf::Buffer& buf = data_.buffers(0);
+  if (!buf.has_uri()) return;
+  std::filesystem::path path = directory_ / buf.uri();
+  file_ = std::ifstream(path, std::ios::binary);
+  if (!file_.is_open())
+    throw std::runtime_error("failed to open \"" + path.string() + "\"");
+  bufferStart_ = 0;
+}
+
+void Gltf::setupVulkanData() {
   uint64_t outputPos = 0;
 
   for (gltf::Mesh& mesh : *data_.mutable_meshes()) {
@@ -225,6 +242,43 @@ Gltf::Gltf(std::filesystem::path path) {
   data_.mutable_buffers(0)->set_alloc_length(outputPos);
 }
 
+void Gltf::save(std::filesystem::path path) {
+  std::filesystem::path dir = path;
+  dir.remove_filename();
+  std::filesystem::create_directories(dir);
+
+  std::filesystem::path binpath = path;
+  binpath.replace_extension("bin");
+  std::ofstream bin(binpath, std::ios::binary | std::ios::out);
+  bin << file_.rdbuf();
+
+  long long start = bin.tellp();
+  for (gltf::Image& image : *data_.mutable_images()) {
+    if (!image.has_uri()) continue;
+    std::filesystem::path imagepath = directory_ / image.uri();
+    std::ifstream imagedata(imagepath, std::ios::binary | std::ios::in);
+    bin << imagedata.rdbuf();
+    long long end = bin.tellp();
+    image.clear_uri();
+    image.set_buffer_view(data_.buffer_views_size());
+    gltf::BufferView* bufferview = data_.add_buffer_views();
+    bufferview->set_buffer(0);
+    bufferview->set_byte_offset(start);
+    bufferview->set_byte_length(end - start);
+    start = end;
+  }
+  file_ = std::ifstream(binpath, std::ios::ate | std::ios::binary);
+  directory_ = dir;
+  data_.mutable_buffers(0)->set_uri(binpath.filename());
+  bufferStart_ = 0;
+
+  std::ofstream file(path, std::ios::binary | std::ios_base::out);
+  constexpr uint32_t magic = 0x62706C67;
+  file.write((char*)&magic, 4);
+  if (!data_.SerializeToOstream(&file))
+    throw std::runtime_error(strerror(errno));
+}
+
 vk::PipelineVertexInputStateCreateInfo Gltf::pipelineInfo(uint32_t p) const {
   bindings_.clear();
   attributes_.clear();
@@ -289,7 +343,7 @@ void Gltf::readBuffers(char* output) const {
 
   uint64_t current = 0;
   for (const gltf::BufferRead& read : data_.buffer_reads()) {
-    uint32_t size = std::min(read.buffer_stride(), read.output_stride());
+    uint64_t size = std::min(read.buffer_stride(), read.output_stride());
     for (uint64_t i = 0; i < read.read_count(); ++i) {
       uint64_t start = read.buffer_offset() + read.buffer_stride() * i;
       uint64_t outstart = read.output_offset() + read.output_stride() * i;
