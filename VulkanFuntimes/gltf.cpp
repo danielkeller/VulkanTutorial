@@ -12,6 +12,7 @@
 
 #include "driver.hpp"
 #include "mikktspace.hpp"
+#include "util.hpp"
 
 void Gltf::readJSON(size_t length) {
   std::string buffer(length, '\0');
