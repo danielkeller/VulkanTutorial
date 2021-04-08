@@ -40,10 +40,10 @@ enum BufferTarget {
 
 message BufferView {
   optional int32 buffer = 1;
-  optional uint64 byte_length = 2;
-  optional uint64 byte_offset = 3;
+  optional uint64 byte_offset = 2;
+  optional uint64 byte_length = 3;
   optional uint32 byte_stride = 4;
-  optional BufferTarget target = 5;
+//  optional BufferTarget target = 5;
 }
 
 enum ComponentType {
@@ -78,16 +78,8 @@ message Accessor {
   // repeated double max = 7 [packed = true];
 }
 
-enum ShaderLocation {
-  POSITION = 1;
-  NORMAL = 2;
-  TANGENT = 3;
-  TEXCOORD_0 = 4;
-}
-
 message Primitive {
   message Attributes {
-    // Field number = shader location
     optional uint32 POSITION = 1;
     optional uint32 NORMAL = 2;
     optional uint32 TANGENT = 3;
@@ -101,71 +93,13 @@ message Primitive {
     TRIANGLES = 4;
   }
   optional Mode mode = 4 [default = TRIANGLES];
-}
-
-message BufferRead {
-  optional uint32 buffer = 1;
-  optional uint64 buffer_offset = 2;
-  optional uint32 buffer_stride = 3;
-  optional uint64 output_offset = 4;
-  optional uint32 output_stride = 5;
-  optional uint64 read_count = 6;
-}
-
-enum Format {
-  FORMAT_UNDEFINED = 0;
-  FORMAT_R16_UINT = 74;
-  FORMAT_R16G16_UINT = 81;
-  FORMAT_R16G16B16_UINT = 88;
-  FORMAT_R16G16B16A16_UINT = 95;
-  FORMAT_R32_UINT = 98;
-  FORMAT_R32_SFLOAT = 100;
-  FORMAT_R32G32_UINT = 101;
-  FORMAT_R32G32_SFLOAT = 103;
-  FORMAT_R32G32B32_UINT = 104;
-  FORMAT_R32G32B32_SFLOAT = 106;
-  FORMAT_R32G32B32A32_UINT = 107;
-  FORMAT_R32G32B32A32_SFLOAT = 109;
-}
-enum IndexType {
-  INDEX_TYPE_UINT16 = 0;
-  INDEX_TYPE_UINT32 = 1;
-}
-
-message PipelineAttribute {
-  optional Format format = 1;
-  optional uint32 offset = 2;
-  optional ShaderLocation location = 3;
-}
-
-message PipelineBinding {
-  optional uint32 stride = 1;
-  repeated uint32 attributes = 2;
-}
-
-message Pipeline {
-  repeated uint32 bindings = 1;
-}
-
-message DrawCall {
-  optional uint32 pipeline = 1;
-  message DrawBinding {
-    optional uint32 buffer = 1;
-    optional uint64 offset = 2;
-  }
-  repeated DrawBinding bindings = 2;
-  optional uint32 index_buffer = 3;
-  optional uint64 index_offset = 4;
-  optional IndexType index_type = 5;
-  optional uint32 index_count = 6;
-  optional bool generate_tangents = 7;
-  optional uint32 material = 8;
+  optional uint64 vertex_offset = 5;
+  optional uint64 index_offset = 6;
 }
 
 message Mesh {
   optional string name = 1;
   repeated Primitive primitives = 2;
-  repeated DrawCall draw_calls = 3;
 }
 
 message Image {
@@ -242,19 +176,14 @@ message Gltf {
   repeated Scene scenes = 3;
   repeated Node nodes = 4;
   
-  repeated PipelineAttribute attributes = 5;
-  repeated PipelineBinding bindings = 6;
-  repeated Pipeline pipelines = 7;
   repeated Mesh meshes = 8;
   
-  repeated BufferRead buffer_reads = 9;
-  repeated Buffer buffers = 10;
+  repeated Accessor accessors = 9;
+  repeated BufferView buffer_views = 10;
+  repeated Buffer buffers = 11;
   
-  repeated Material materials = 11;
-  repeated Texture textures = 12;
-  repeated Sampler samplers = 13;
-  repeated Image images = 14;
-  
-  repeated Accessor accessors = 15;
-  repeated BufferView buffer_views = 16;
+  repeated Material materials = 12;
+  repeated Texture textures = 13;
+  repeated Sampler samplers = 14;
+  repeated Image images = 15;
 }

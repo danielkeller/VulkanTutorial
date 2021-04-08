@@ -34,14 +34,51 @@ void makeTangents(uint32_t nIndices, uint16_t* indices,
     v1 -= n * dot(v1, n);
     v2 -= n * dot(v2, n);
     // Tangent is object space direction of texture coordinates
-    vec3 s = normalize((t2.y * v1 - t1.y * v2)*flip);
-    
+    vec3 s = normalize((t2.y * v1 - t1.y * v2) * flip);
+
     // Use angle between projected v1 and v2 as weight
     float angle = std::acos(dot(v1, v2) / (length(v1) * length(v2)));
     tangents[i] += vec4(s * angle, 0);
   }
   for (uint32_t l = 0; l < nIndices; ++l) {
     vec4& t = tangents[indices[l]];
+    t = vec4(normalize(vec3(t.x, t.y, t.z)), t.w);
+  }
+
+  if (inconsistentUvs) std::cerr << inconsistentUvs << " inconsistent UVs\n";
+}
+
+void makeTangents(uint32_t nIndices, Index* indices, Vertex* vertices) {
+  uint32_t inconsistentUvs = 0;
+  for (uint32_t l = 0; l < nIndices; ++l) vertices[indices[l]].tangent = vec4(0);
+  for (uint32_t l = 0; l < nIndices; ++l) {
+    Vertex& i = vertices[indices[l]];
+    Vertex& j = vertices[indices[(l + 1) % 3 + l / 3 * 3]];
+    Vertex& k = vertices[indices[(l + 2) % 3 + l / 3 * 3]];
+    vec3 n = i.normal;
+    vec3 v1 = j.position - i.position, v2 = k.position - i.position;
+    vec2 t1 = j.texcoord - i.texcoord, t2 = k.texcoord - i.texcoord;
+
+    // Is the texture flipped?
+    float uv2xArea = t1.x * t2.y - t1.y * t2.x;
+    if (std::abs(uv2xArea) < 0x1p-20)
+      continue;  // Smaller than 1/2 pixel at 1024x1024
+    float flip = uv2xArea > 0 ? 1 : -1;
+    if (i.tangent.w != 0 && i.tangent.w != -flip) ++inconsistentUvs;
+    i.tangent.w = -flip;
+
+    // Project triangle onto tangent plane
+    v1 -= n * dot(v1, n);
+    v2 -= n * dot(v2, n);
+    // Tangent is object space direction of texture coordinates
+    vec3 s = normalize((t2.y * v1 - t1.y * v2) * flip);
+
+    // Use angle between projected v1 and v2 as weight
+    float angle = std::acos(dot(v1, v2) / (length(v1) * length(v2)));
+    i.tangent += vec4(s * angle, 0);
+  }
+  for (uint32_t l = 0; l < nIndices; ++l) {
+    vec4& t = vertices[indices[l]].tangent;
     t = vec4(normalize(vec3(t.x, t.y, t.z)), t.w);
   }
 

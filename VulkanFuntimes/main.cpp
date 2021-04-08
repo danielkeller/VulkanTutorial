@@ -19,7 +19,7 @@ void mainApp() {
 
 //    Gltf gltffile("models/MetalRough/MetalRoughSpheres.gltf");
   //  Gltf gltffile("models/2CylinderEngine/2CylinderEngine.gltf");
-  Gltf gltffile("models/DamagedHelmet.glpb");
+  Gltf gltffile("models/DamagedHelmet.glb");
 //  gltffile.save(
 //      "/Users/dan/Projects/VulkanFuntimes/Resources/models/DamagedHelmet.glpb");
   // Gltf gltffile("models/viking_room/scene.gltf");

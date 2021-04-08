@@ -4,6 +4,14 @@
 #include "vulkan/vulkan.hpp"
 #include "drawdata.hpp"
 
+using Index = uint16_t;
+struct Vertex {
+  glm::vec3 position;
+  glm::vec3 normal;
+  glm::vec2 texcoord;
+  glm::vec4 tangent;
+};
+
 struct Pipeline {
   vk::DescriptorSetLayout descriptorSetLayout_;
   vk::PipelineLayout layout_;

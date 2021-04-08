@@ -34,7 +34,17 @@ Pipeline::Pipeline(const Gltf &model) {
   vk::PipelineDynamicStateCreateInfo dynamicState(/*flags=*/{}, dynamicStates);
 
   // Fixed function stuff
-  vk::PipelineVertexInputStateCreateInfo vertexInput = model.pipelineInfo(0);
+  std::initializer_list<vk::VertexInputBindingDescription> vertexBindings = {
+      {0, sizeof(Vertex)}};
+  std::initializer_list<vk::VertexInputAttributeDescription> attributes = {
+      {/*location=*/0, /*binding=*/0, vk::Format::eR32G32B32Sfloat,
+       offsetof(Vertex, position)},
+      {1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal)},
+      {2, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Vertex, tangent)},
+      {3, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texcoord)}};
+  vk::PipelineVertexInputStateCreateInfo vertexInputs{
+      /*flags=*/{}, vertexBindings, attributes};
+
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
       /*flags=*/{}, /*topology=*/vk::PrimitiveTopology::eTriangleList};
   vk::PipelineRasterizationStateCreateInfo rasterization(
@@ -93,7 +103,7 @@ Pipeline::Pipeline(const Gltf &model) {
   vk::ResultValue<std::vector<vk::Pipeline>> pipelines_or =
       gDevice.createGraphicsPipelines(
           /*pipelineCache=*/nullptr,
-          {{/*flags=*/{}, stages, &vertexInput, &inputAssembly,
+          {{/*flags=*/{}, stages, &vertexInputs, &inputAssembly,
             /*tesselation=*/{}, &viewportState, &rasterization, &multisample,
             &depthStencil, &colorBlend, &dynamicState, layout_, gRenderPass,
             /*subpass=*/0, /*basePipeline=*/{}}});
@@ -180,20 +190,19 @@ CommandBuffer::CommandBuffer(const Pipeline &pipeline,
       vk::SubpassContents::eInline);
   buf_.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.pipeline_);
   for (uint32_t mesh = 0; mesh < gltf.meshCount(); ++mesh) {
-    for (const auto &drawCall : gltf.data_.meshes(mesh).draw_calls()) {
-      buf_.bindDescriptorSets(
-          vk::PipelineBindPoint::eGraphics, pipeline.layout_,
-          /*firstSet=*/0, descriptorPool.set_,
-          {gltf.meshUniformOffset(mesh),
-           gltf.materialUniformOffset(drawCall.material())});
+    for (const auto &prim : gltf.data_.meshes(mesh).primitives()) {
+      buf_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                              pipeline.layout_,
+                              /*firstSet=*/0, descriptorPool.set_,
+                              {gltf.meshUniformOffset(mesh),
+                               gltf.materialUniformOffset(prim.material())});
 
-      for (uint32_t binding = 0; binding < drawCall.bindings_size(); ++binding)
-        buf_.bindVertexBuffers(binding, vertices.buffer_,
-                               drawCall.bindings(binding).offset());
-      buf_.bindIndexBuffer(vertices.buffer_,
-                           static_cast<vk::DeviceSize>(drawCall.index_offset()),
-                           static_cast<vk::IndexType>(drawCall.index_type()));
-      buf_.drawIndexed(drawCall.index_count(), /*instanceCount=*/1,
+      buf_.bindVertexBuffers(/*binding=*/0, vertices.buffer_,
+                             prim.vertex_offset());
+      buf_.bindIndexBuffer(vertices.buffer_, prim.index_offset(),
+                           vk::IndexType::eUint16);
+      const auto &inds = gltf.data_.accessors(prim.indices());
+      buf_.drawIndexed(inds.count(), /*instanceCount=*/1,
                        /*firstIndex=*/0,
                        /*vertexOffset=*/0,
                        /*firstInstance=*/0);

@@ -24,8 +24,6 @@ struct Pixels {
 struct Gltf {
   Gltf(std::filesystem::path path);
   void save(std::filesystem::path path);
-  uint32_t pipelinesCount() const { return data_.pipelines_size(); }
-  vk::PipelineVertexInputStateCreateInfo pipelineInfo(uint32_t i) const;
 
   vk::DeviceSize bufferSize() const;
   void readBuffers(char* output) const;
@@ -41,9 +39,6 @@ struct Gltf {
   std::filesystem::path directory_;
   mutable std::ifstream file_;
   long long bufferStart_;
-
-  mutable std::vector<vk::VertexInputBindingDescription> bindings_;
-  mutable std::vector<vk::VertexInputAttributeDescription> attributes_;
   
 private:
   void readJSON(size_t length);
